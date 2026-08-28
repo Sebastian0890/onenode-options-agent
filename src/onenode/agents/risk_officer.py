@@ -24,8 +24,8 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field
 
-from ..risk.models import ProposedTrade
-from ..strategy import SpreadCandidate
+from ..risk.models import ProposedTrade, Side
+from ..strategy import IronCondorCandidate, SpreadCandidate
 
 FEATHERLESS_URL = "https://api.featherless.ai/v1/chat/completions"
 FEATHERLESS_MODEL = os.environ.get("FEATHERLESS_MODEL", "mistralai/Mistral-Small-24B-Instruct-2501")
@@ -62,8 +62,18 @@ class RiskVerdict(BaseModel):
     )
 
 
+def nearest_short_distance(candidate: SpreadCandidate | IronCondorCandidate, spot: float) -> float:
+    """Distance from spot to the closest short strike.
+
+    For a condor this is the wing that gets tested first, which is the number
+    that actually matters when judging whether the structure is too tight.
+    """
+    shorts = [leg.strike for leg in candidate.legs if leg.side is Side.SELL]
+    return min((abs(spot - strike) for strike in shorts), default=0.0)
+
+
 def build_prompt(
-    candidate: SpreadCandidate,
+    candidate: SpreadCandidate | IronCondorCandidate,
     trade: ProposedTrade,
     *,
     spot: float,
@@ -75,17 +85,17 @@ def build_prompt(
     worst_case_loss: float,
 ) -> str:
     """Describe the trade and the account - and nothing about why it was chosen."""
-    distance = abs(spot - candidate.short_leg.strike)
+    distance = nearest_short_distance(candidate, spot)
+    pct = 100 * distance / spot if spot else 0.0
     return f"""Proposed trade
-  {candidate.right.value} credit spread on {candidate.underlying}
-  short {candidate.short_leg.strike:g} / long {candidate.long_leg.strike:g}, \
-width ${candidate.width:g}
+  {candidate.structure} on {candidate.underlying}
+  {candidate.describe()}
   expiry {candidate.expiry}
   contracts: {trade.contracts}
   credit collected: ${trade.net_cash:,.2f}
   worst case loss: ${worst_case_loss:,.2f}
-  short strike delta: {candidate.short_delta:.3f}
-  distance from spot to short strike: {distance:,.2f} ({100 * distance / spot:.2f}%)
+  nearest short strike delta: {candidate.short_delta:.3f}
+  distance from spot to nearest short strike: {distance:,.2f} ({pct:.2f}%)
 
 Market
   {candidate.underlying} spot: {spot:,.2f}
@@ -155,7 +165,7 @@ def _review_via_claude(prompt: str) -> RiskVerdict:
 
 
 def review_trade(
-    candidate: SpreadCandidate,
+    candidate: SpreadCandidate | IronCondorCandidate,
     trade: ProposedTrade,
     *,
     spot: float,

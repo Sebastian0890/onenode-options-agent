@@ -19,7 +19,9 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel, Field
 
-from ..strategy import SpreadCandidate
+from ..strategy import IronCondorCandidate, SpreadCandidate
+
+Candidate = SpreadCandidate | IronCondorCandidate
 
 MODEL = "claude-opus-5"
 MAX_CANDIDATES = 25
@@ -60,7 +62,7 @@ class ProposerDecision(BaseModel):
 
 
 def build_prompt(
-    candidates: list[SpreadCandidate],
+    candidates: list[Candidate],
     *,
     underlying: str,
     spot: float,
@@ -89,7 +91,7 @@ Choose one candidate key from the list above, or stand aside."""
 
 
 def propose_trade(
-    candidates: list[SpreadCandidate],
+    candidates: list[Candidate],
     *,
     underlying: str,
     spot: float,
@@ -154,5 +156,5 @@ def propose_trade(
     return decision
 
 
-def find_candidate(candidates: list[SpreadCandidate], key: str) -> SpreadCandidate | None:
+def find_candidate(candidates: list[Candidate], key: str) -> Candidate | None:
     return next((candidate for candidate in candidates if candidate.key == key), None)

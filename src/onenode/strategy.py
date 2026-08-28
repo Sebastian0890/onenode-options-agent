@@ -24,6 +24,7 @@ from datetime import date, datetime
 
 from .broker.cli import ContractQuote
 from .risk.models import CONTRACT_MULTIPLIER, OptionLeg, ProposedTrade, Right, Side
+from .risk.payoff import worst_case_loss
 
 DEFAULT_WIDTHS: tuple[float, ...] = (1.0, 2.0, 3.0, 5.0)
 
@@ -39,6 +40,23 @@ class SpreadCandidate:
     long_leg: OptionLeg
     short_quote: ContractQuote
     long_quote: ContractQuote
+
+    @property
+    def legs(self) -> tuple[OptionLeg, ...]:
+        """Every leg of the structure, short side first.
+
+        The generic accessor everything downstream uses, so an order builder or
+        a prompt never has to know whether it is looking at two legs or four.
+        """
+        return (self.short_leg, self.long_leg)
+
+    @property
+    def quotes(self) -> tuple[ContractQuote, ...]:
+        return (self.short_quote, self.long_quote)
+
+    @property
+    def structure(self) -> str:
+        return f"{self.right.value} credit spread"
 
     @property
     def width(self) -> float:
@@ -95,7 +113,7 @@ class SpreadCandidate:
         """Hand this candidate to the hard gate for a verdict."""
         return ProposedTrade(
             underlying=self.underlying,
-            legs=(self.short_leg, self.long_leg),
+            legs=self.legs,
             contracts=contracts,
             net_cash=self.credit_per_contract * contracts,
             quote_age_seconds=self.quote_age_seconds(now),
@@ -200,8 +218,163 @@ def build_credit_spreads(
     return sorted(candidates, key=lambda c: (-c.reward_to_risk, c.max_loss_per_contract))
 
 
+@dataclass(frozen=True)
+class IronCondorCandidate:
+    """A put credit spread and a call credit spread on the same expiry.
+
+    Worth building because only one side can finish in the money. The two
+    spreads collect two credits but the structure risks roughly one width, so
+    the reward-to-risk of the pair beats either side alone - measured against
+    the live SPY chain on 2026-08-28, roughly threefold.
+
+    That is not free money, and it should not be described as such. A condor
+    with both shorts near 0.23 delta finishes fully profitable maybe 54% of the
+    time, against roughly 77% for the put spread alone: the better ratio is
+    paid for with a lower win rate, because options are priced by people who
+    can also do this arithmetic. What the structure genuinely buys is capital
+    efficiency - the same risk budget carries far more credit - and the
+    50%-profit exit rule collects on that long before expiry decides anything.
+
+    The worst case is not assumed to be "the wider wing minus the credit". It
+    is measured by the same payoff engine the hard gate uses, so the number
+    quoted here and the number the gate enforces agree by construction rather
+    than by two implementations happening to match.
+    """
+
+    underlying: str
+    expiry: date
+    put_side: SpreadCandidate
+    call_side: SpreadCandidate
+
+    @property
+    def legs(self) -> tuple[OptionLeg, ...]:
+        return self.put_side.legs + self.call_side.legs
+
+    @property
+    def quotes(self) -> tuple[ContractQuote, ...]:
+        return self.put_side.quotes + self.call_side.quotes
+
+    @property
+    def structure(self) -> str:
+        return "iron condor"
+
+    @property
+    def credit_per_contract(self) -> float:
+        return self.put_side.credit_per_contract + self.call_side.credit_per_contract
+
+    @property
+    def max_loss_per_contract(self) -> float:
+        loss = worst_case_loss(self.legs, 1, self.credit_per_contract)
+        # Both wings are long-protected, so the structure is always bounded.
+        # If that ever stops being true the caller should hear about it rather
+        # than receive a plausible number.
+        if loss is None:  # pragma: no cover - unreachable for a well-formed condor
+            raise ValueError(f"iron condor {self.key} has unbounded risk")
+        return loss
+
+    @property
+    def reward_to_risk(self) -> float:
+        risk = self.max_loss_per_contract
+        return self.credit_per_contract / risk if risk > 0 else 0.0
+
+    @property
+    def short_delta(self) -> float:
+        """The riskier of the two short strikes - the one likely to be tested."""
+        return max(self.put_side.short_delta, self.call_side.short_delta)
+
+    @property
+    def worst_leg_spread_pct(self) -> float:
+        return max(quote.spread_pct_of_mid for quote in self.quotes)
+
+    def quote_age_seconds(self, now: datetime | None = None) -> float:
+        return max(quote.age_seconds(now) for quote in self.quotes)
+
+    @property
+    def key(self) -> str:
+        return f"{self.put_side.key}+{self.call_side.key}"
+
+    def describe(self) -> str:
+        return (
+            f"{self.key} | iron condor | exp {self.expiry} | "
+            f"put {self.put_side.short_leg.strike:g}/{self.put_side.long_leg.strike:g} "
+            f"call {self.call_side.short_leg.strike:g}/{self.call_side.long_leg.strike:g} | "
+            f"credit ${self.credit_per_contract:.0f} | "
+            f"risk ${self.max_loss_per_contract:.0f} | "
+            f"r/r {self.reward_to_risk:.2f} | widest short delta {self.short_delta:.3f} | "
+            f"worst leg spread {self.worst_leg_spread_pct:.1f}%"
+        )
+
+    def to_proposed_trade(
+        self,
+        contracts: int,
+        rationale: str = "",
+        now: datetime | None = None,
+    ) -> ProposedTrade:
+        return ProposedTrade(
+            underlying=self.underlying,
+            legs=self.legs,
+            contracts=contracts,
+            net_cash=self.credit_per_contract * contracts,
+            quote_age_seconds=self.quote_age_seconds(now),
+            worst_leg_spread_pct=self.worst_leg_spread_pct,
+            rationale=rationale,
+        )
+
+
+def build_iron_condors(
+    put_spreads: Sequence[SpreadCandidate],
+    call_spreads: Sequence[SpreadCandidate],
+    *,
+    min_reward_to_risk: float = 0.20,
+    max_per_expiry: int = 3,
+) -> list[IronCondorCandidate]:
+    """Pair put and call spreads of the same expiry into iron condors.
+
+    The reward-to-risk floor defaults higher than for a single vertical,
+    because a condor that does not clearly beat its own put side is not worth
+    the extra two legs of execution risk and commission.
+
+    Only the best few per expiry are returned. Pairing every put with every
+    call produces hundreds of near-identical structures, which buries the
+    model in noise without adding a single distinct choice.
+    """
+    by_expiry: dict[date, list[IronCondorCandidate]] = {}
+
+    for put_side in put_spreads:
+        if put_side.right is not Right.PUT:
+            continue
+        for call_side in call_spreads:
+            if call_side.right is not Right.CALL:
+                continue
+            if call_side.expiry != put_side.expiry:
+                continue
+            if call_side.underlying != put_side.underlying:
+                continue
+            # A short call strike at or below the short put strike is an
+            # inverted condor: the wings overlap and both sides can lose.
+            if call_side.short_leg.strike <= put_side.short_leg.strike:
+                continue
+
+            condor = IronCondorCandidate(
+                underlying=put_side.underlying,
+                expiry=put_side.expiry,
+                put_side=put_side,
+                call_side=call_side,
+            )
+            if condor.reward_to_risk < min_reward_to_risk:
+                continue
+            by_expiry.setdefault(condor.expiry, []).append(condor)
+
+    out: list[IronCondorCandidate] = []
+    for expiry in sorted(by_expiry):
+        ranked = sorted(by_expiry[expiry], key=lambda c: -c.reward_to_risk)
+        out.extend(ranked[:max_per_expiry])
+
+    return sorted(out, key=lambda c: -c.reward_to_risk)
+
+
 def size_position(
-    candidate: SpreadCandidate,
+    candidate: SpreadCandidate | IronCondorCandidate,
     equity: float,
     max_risk_pct: float,
     max_contracts: int,

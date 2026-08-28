@@ -19,7 +19,11 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from onenode.broker import AlpacaCLI  # noqa: E402
 from onenode.risk.models import Right  # noqa: E402
-from onenode.strategy import build_credit_spreads, size_position  # noqa: E402
+from onenode.strategy import (  # noqa: E402
+    build_credit_spreads,
+    build_iron_condors,
+    size_position,
+)
 
 EQUITY = 100_000.0
 
@@ -100,6 +104,29 @@ def main() -> int:
     print(f"\ncall-side candidates: {len(call_candidates)}")
     for candidate in call_candidates[:3]:
         print(f"  {candidate.describe()}")
+
+    print("\niron condor floor sweep:")
+    for floor in (0.0, 0.20, 0.30, 0.40, 0.50):
+        condors = build_iron_condors(everything, call_candidates, min_reward_to_risk=floor)
+        best = condors[0].reward_to_risk if condors else 0.0
+        print(f"  floor {floor:.2f} -> {len(condors):3d} condors, best r/r {best:.3f}")
+
+    condors = build_iron_condors(everything, call_candidates, min_reward_to_risk=0.20)
+    if condors:
+        print("\ntop condors:")
+        for condor in condors[:5]:
+            size = size_position(condor, EQUITY, max_risk_pct=1.5, max_contracts=25)
+            print(f"  {condor.describe()} | size {size}")
+
+        best = condors[0]
+        best_vertical = everything[0]
+        print(
+            f"\nbest condor r/r {best.reward_to_risk:.3f} "
+            f"vs best vertical r/r {best_vertical.reward_to_risk:.3f} "
+            f"({best.reward_to_risk / best_vertical.reward_to_risk:.2f}x)"
+        )
+    else:
+        print("\nNo condors survive the 0.20 floor.")
 
     return 0
 

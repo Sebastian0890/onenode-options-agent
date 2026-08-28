@@ -32,8 +32,8 @@ from .management import DEFAULT_EXIT_RULES, ExitRules, positions_to_close
 from .portfolio import committed_risk, group_option_positions
 from .risk.gate import evaluate
 from .risk.limits import DEFAULT_LIMITS, RiskLimits
-from .risk.models import AccountSnapshot
-from .strategy import build_credit_spreads, size_position
+from .risk.models import AccountSnapshot, Right
+from .strategy import build_credit_spreads, build_iron_condors, size_position
 
 DEFAULT_UNDERLYINGS = ("SPY", "QQQ", "IWM")
 
@@ -175,18 +175,25 @@ def run_once(
         )
 
     # --- 5. Build the menu -----------------------------------------------
-    candidates = []
+    candidates: list = []
     spots: dict[str, float] = {}
     for underlying in underlyings:
         if underlying not in limits.allowed_underlyings:
             continue
         try:
             spot = cli.latest_price(underlying)
-            chain = cli.option_chain(
+            puts = cli.option_chain(
                 underlying,
                 option_type="put",
                 strike_gte=spot * 0.94,
                 strike_lte=spot * 1.00,
+                limit=1000,
+            )
+            calls = cli.option_chain(
+                underlying,
+                option_type="call",
+                strike_gte=spot * 1.00,
+                strike_lte=spot * 1.06,
                 limit=1000,
             )
         except AlpacaCLIError as exc:
@@ -194,17 +201,28 @@ def run_once(
             continue
 
         spots[underlying] = spot
-        candidates += build_credit_spreads(
-            list(chain.values()),
-            underlying=underlying,
-            max_days_to_expiry=limits.max_days_to_expiry,
-            max_spread_pct=limits.max_spread_pct_of_mid,
-            min_reward_to_risk=limits.min_reward_to_risk,
-            today=today,
-        )
+        shared = {
+            "underlying": underlying,
+            "max_days_to_expiry": limits.max_days_to_expiry,
+            "max_spread_pct": limits.max_spread_pct_of_mid,
+            "min_reward_to_risk": limits.min_reward_to_risk,
+            "today": today,
+        }
+        put_spreads = build_credit_spreads(list(puts.values()), right=Right.PUT, **shared)
+        call_spreads = build_credit_spreads(list(calls.values()), right=Right.CALL, **shared)
+
+        # Condors first in the list, and they will usually stay near the top:
+        # two credits against roughly one width beats either side alone.
+        candidates += build_iron_condors(put_spreads, call_spreads)
+        candidates += put_spreads
+        candidates += call_spreads
 
     candidates.sort(key=lambda c: -c.reward_to_risk)
-    note("candidates_found", contracts=len(candidates))
+    note(
+        "candidates_found",
+        contracts=len(candidates),
+        reason=f"{sum(1 for c in candidates if c.structure == 'iron condor')} condors",
+    )
 
     if not candidates:
         write_markdown(journal.entries())

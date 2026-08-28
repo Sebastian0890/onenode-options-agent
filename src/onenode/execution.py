@@ -21,20 +21,24 @@ from typing import Any
 from .broker.cli import AlpacaCLI, AlpacaCLIError
 from .portfolio import PositionGroup
 from .risk.models import OptionLeg, Side
-from .strategy import SpreadCandidate
+from .strategy import IronCondorCandidate, SpreadCandidate
 
 CONTRACT_MULTIPLIER = 100
 
 
-def leg_payload(candidate: SpreadCandidate) -> list[dict[str, str]]:
+def leg_payload(candidate: SpreadCandidate | IronCondorCandidate) -> list[dict[str, str]]:
     """The ``legs`` array Alpaca expects for an ``mleg`` order.
 
-    ``position_intent`` is stated explicitly on both legs. Left implicit, a
+    Reads ``candidate.legs`` rather than named leg attributes, so a two-leg
+    vertical and a four-leg condor go through the same path. Alpaca accepts up
+    to four legs, which a condor exactly fills.
+
+    ``position_intent`` is stated explicitly on every leg. Left implicit, a
     broker may net a new spread against an existing position and close
     something the agent still wanted open.
     """
     payload = []
-    for leg in (candidate.short_leg, candidate.long_leg):
+    for leg in candidate.legs:
         opening = "sell_to_open" if leg.side is Side.SELL else "buy_to_open"
         payload.append(
             {
@@ -68,7 +72,9 @@ def closing_leg_payload(legs: Iterable[OptionLeg]) -> list[dict[str, str]]:
     return payload
 
 
-def limit_price_for_credit(candidate: SpreadCandidate, slippage: float = 0.02) -> float:
+def limit_price_for_credit(
+    candidate: SpreadCandidate | IronCondorCandidate, slippage: float = 0.02
+) -> float:
     """Net credit to ask for, per share, shaded to make the fill likely.
 
     The candidate is priced at short-bid minus long-ask, already the worst
@@ -118,7 +124,7 @@ def build_order_args(
 
 def submit_spread(
     cli: AlpacaCLI,
-    candidate: SpreadCandidate,
+    candidate: SpreadCandidate | IronCondorCandidate,
     contracts: int,
     *,
     limit_price: float | None = None,
