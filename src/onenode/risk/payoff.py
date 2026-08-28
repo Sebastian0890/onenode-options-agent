@@ -91,6 +91,36 @@ def worst_case_loss(
     return max(-worst_profit, 0.0)
 
 
+def remaining_risk(
+    legs: Iterable[OptionLeg],
+    contracts: int,
+    market_value: float,
+) -> float | None:
+    """How much more a position already held can still lose, in dollars.
+
+    This is the figure the portfolio ceiling is enforced against, and it is not
+    the same as the worst case at entry. Premium already collected is spent;
+    what matters for whether another trade fits is the distance between what
+    the position is worth now and the worst it can be worth at expiry.
+
+    ``market_value`` is the signed liquidation value as the broker reports it:
+    positive for a net long structure, negative for a net short one. Returns
+    ``None`` if the downside is unbounded.
+    """
+    legs = tuple(legs)
+    if not legs:
+        raise ValueError("cannot evaluate an empty structure")
+
+    if slope_at_infinity(legs) < 0:
+        return None
+
+    candidates = [0.0, *sorted({leg.strike for leg in legs})]
+    worst_expiry_value = min(
+        payoff_per_share(legs, price) * CONTRACT_MULTIPLIER * contracts for price in candidates
+    )
+    return max(market_value - worst_expiry_value, 0.0)
+
+
 def max_gain(
     legs: Iterable[OptionLeg],
     contracts: int,

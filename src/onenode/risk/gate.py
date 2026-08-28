@@ -64,8 +64,7 @@ def evaluate(
     # --- Structure -------------------------------------------------------
     if len(trade.expiries) > limits.max_distinct_expiries:
         violations.append(
-            f"{len(trade.expiries)} distinct expiries, "
-            f"maximum is {limits.max_distinct_expiries}"
+            f"{len(trade.expiries)} distinct expiries, maximum is {limits.max_distinct_expiries}"
         )
 
     for expiry in trade.expiries:

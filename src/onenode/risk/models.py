@@ -10,18 +10,18 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 
 CONTRACT_MULTIPLIER = 100
 """Shares per US equity option contract."""
 
 
-class Right(str, Enum):
+class Right(StrEnum):
     CALL = "call"
     PUT = "put"
 
 
-class Side(str, Enum):
+class Side(StrEnum):
     BUY = "buy"
     SELL = "sell"
 
@@ -84,6 +84,14 @@ class OptionLeg:
     def signed_ratio(self) -> int:
         """+ratio for long legs, -ratio for short legs."""
         return self.ratio_qty if self.side is Side.BUY else -self.ratio_qty
+
+    @property
+    def root(self) -> str:
+        """Underlying ticker, taken from the symbol rather than stored alongside it."""
+        match = _OCC_RE.match(self.symbol)
+        if match is None:  # pragma: no cover - construction already validated it
+            raise ValueError(f"not a valid OCC option symbol: {self.symbol!r}")
+        return match["root"]
 
 
 @dataclass(frozen=True)
