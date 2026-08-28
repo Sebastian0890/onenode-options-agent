@@ -139,10 +139,58 @@ class ContractQuote:
             gamma=_opt_float(greeks, "gamma"),
             theta=_opt_float(greeks, "theta"),
             vega=_opt_float(greeks, "vega"),
+            # Verified against the live chain on 2026-08-28: the snapshot carries
+            # dailyBar, greeks, latestQuote, latestTrade, minuteBar and
+            # prevDailyBar, and no implied-volatility field at all. Kept optional
+            # rather than removed in case a paid feed supplies it; strike
+            # selection runs on delta, which is populated near the money.
             implied_volatility=_opt_float(
                 snapshot, "impliedVolatility", "implied_volatility", "iv"
             ),
         )
+
+
+def _format_number(value: float) -> str:
+    """Render a number for the command line without scientific notation.
+
+    ``f"{x:g}"`` looks right until the value reaches a million, at which point
+    it emits ``1e+06`` and the CLI rejects it. Strikes never get that large,
+    but a formatter that quietly breaks on large input is not one to keep.
+    """
+    text = f"{value:.4f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def chain_args(
+    underlying: str,
+    *,
+    expiration_date: str | None = None,
+    option_type: str | None = None,
+    strike_gte: float | None = None,
+    strike_lte: float | None = None,
+    feed: str | None = None,
+    limit: int = 200,
+) -> list[str]:
+    """Build the argument list for ``alpaca data option chain``.
+
+    Split out as a pure function because of a bug worth not repeating: the
+    underlying was first passed positionally, which the CLI rejects. Every
+    command in this tool takes flags and never positional arguments, and that
+    convention is now pinned by a test rather than by memory.
+    """
+    args = ["data", "option", "chain", "--underlying-symbol", underlying.upper()]
+    if expiration_date:
+        args += ["--expiration-date", expiration_date]
+    if option_type:
+        args += ["--type", option_type]
+    if strike_gte is not None:
+        args += ["--strike-price-gte", _format_number(strike_gte)]
+    if strike_lte is not None:
+        args += ["--strike-price-lte", _format_number(strike_lte)]
+    if feed:
+        args += ["--feed", feed]
+    args += ["--limit", str(limit)]
+    return args
 
 
 def _default_binary() -> str:
@@ -270,27 +318,39 @@ class AlpacaCLI:
 
     # --- Market data -----------------------------------------------------
 
+    def latest_price(self, symbol: str) -> float:
+        """Last traded price of an underlying, used to centre the strike band."""
+        payload = self._run("data", "latest-trade", "--symbol", symbol)
+        trade = payload.get("trade")
+        if not isinstance(trade, dict):
+            raise AlpacaCLIError(f"no trade in latest-trade response for {symbol}")
+        return _as_float(trade, "p", "price")
+
     def option_chain(
         self,
         underlying: str,
         *,
         expiration_date: str | None = None,
+        option_type: str | None = None,
         strike_gte: float | None = None,
         strike_lte: float | None = None,
+        feed: str | None = None,
+        limit: int = 200,
     ) -> dict[str, ContractQuote]:
         """Fetch a chain and keep only the contracts that can actually be traded.
 
         Strikes with no bid or no ask are dropped here rather than handed to
         the model, so it never spends reasoning on a contract it could not fill.
         """
-        args = ["data", "option", "chain", underlying]
-        if expiration_date:
-            args += ["--expiration-date", expiration_date]
-        if strike_gte is not None:
-            args += ["--strike-price-gte", str(strike_gte)]
-        if strike_lte is not None:
-            args += ["--strike-price-lte", str(strike_lte)]
-
+        args = chain_args(
+            underlying,
+            expiration_date=expiration_date,
+            option_type=option_type,
+            strike_gte=strike_gte,
+            strike_lte=strike_lte,
+            feed=feed,
+            limit=limit,
+        )
         payload = self._run(*args)
         snapshots = payload.get("snapshots") or {}
 
