@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OneNode Options Agent</title>
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --panel: #ffffff;
+    --ink: #1a1917;
+    --muted: #6b6862;
+    --line: #e6e2dc;
+    --accent: #b3543a;
+    --ok: #2f6b4f;
+    --warn: #9a6b1f;
+    --stop: #a33a2e;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16150f;
+      --panel: #1e1d17;
+      --ink: #f0ece4;
+      --muted: #9b968c;
+      --line: #322f27;
+      --accent: #e08163;
+      --ok: #6fbf95;
+      --warn: #d6a54f;
+      --stop: #e0796b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+  h1 { font-size: clamp(1.6rem, 4vw, 2.3rem); margin: 0 0 .4rem; letter-spacing: -.02em; }
+  .sub { color: var(--muted); margin: 0; }
+  .badge {
+    display: inline-block; font-size: .74rem; letter-spacing: .09em; text-transform: uppercase;
+    border: 1px solid var(--line); border-radius: 99px; padding: .2rem .7rem;
+    color: var(--muted); margin-top: .9rem;
+  }
+  h2 { font-size: 1.05rem; letter-spacing: .04em; text-transform: uppercase;
+       color: var(--muted); margin: 2.6rem 0 .9rem; font-weight: 600; }
+  .stats { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem; }
+  .stat .n { font: 600 1.75rem/1.1 var(--mono); letter-spacing: -.02em; }
+  .stat .k { color: var(--muted); font-size: .82rem; margin-top: .3rem; }
+  .layers { display: grid; gap: .6rem; }
+  .layer { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--line);
+           border-radius: 8px; padding: .9rem 1.1rem; }
+  .layer.gate { border-left-color: var(--accent); }
+  .layer .t { font-weight: 600; }
+  .layer .d { color: var(--muted); font-size: .9rem; }
+  .layer .v { font: .78rem var(--mono); color: var(--muted); margin-top: .35rem; }
+  .feed { display: grid; gap: .55rem; }
+  .ev { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .8rem 1rem; }
+  .ev .h { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
+  .ev .tag { font: .72rem var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+  .ev .ts { color: var(--muted); font: .76rem var(--mono); margin-left: auto; }
+  .ev .body { font-size: .9rem; margin-top: .35rem; }
+  .ev .meta { font: .78rem var(--mono); color: var(--muted); margin-top: .35rem; overflow-x: auto; }
+  .t-order_placed .tag, .t-gate_approved .tag { color: var(--ok); }
+  .t-gate_blocked .tag, .t-order_failed .tag, .t-halted .tag { color: var(--stop); }
+  .t-risk_officer_veto .tag { color: var(--warn); }
+  .t-order_placed { border-left: 3px solid var(--ok); }
+  .t-gate_blocked, .t-halted { border-left: 3px solid var(--stop); }
+  .t-risk_officer_veto { border-left: 3px solid var(--warn); }
+  .empty { color: var(--muted); background: var(--panel); border: 1px dashed var(--line);
+           border-radius: 8px; padding: 1.4rem; text-align: center; }
+  footer { margin-top: 3.5rem; padding-top: 1.4rem; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: .82rem; }
+  a { color: var(--accent); }
+  code { font: .88em var(--mono); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>OneNode Options Agent</h1>
+  <p class="sub">An autonomous, defined-risk options trader on Alpaca. Two models argue; neither can pull the trigger.</p>
+  <span class="badge">Paper trading · no real capital</span>
+</header>
+
+<section>
+  <h2>Activity</h2>
+  <div class="stats" id="stats"></div>
+</section>
+
+<section>
+  <h2>How a trade gets placed</h2>
+  <div class="layers">
+    <div class="layer">
+      <div class="t">1 · Candidate builder <span style="color:var(--muted);font-weight:400">— plain code</span></div>
+      <div class="d">Enumerates every credit spread and iron condor that is really in the chain, really quoted and really tradeable. The model is never asked to name a contract, so it cannot invent one.</div>
+      <div class="v">priced at short-bid minus long-ask, never mid-to-mid</div>
+    </div>
+    <div class="layer">
+      <div class="t">2 · Proposer <span style="color:var(--muted);font-weight:400">— Claude Opus 5</span></div>
+      <div class="d">Picks one key off that menu, or stands aside. Standing aside is a first-class answer.</div>
+      <div class="v">can suggest · cannot place</div>
+    </div>
+    <div class="layer">
+      <div class="t">3 · Risk Officer <span style="color:var(--muted);font-weight:400">— independent model</span></div>
+      <div class="d">Different model family, and never shown the Proposer's reasoning. Prompted to refute rather than assess, and to refuse when uncertain. Any failure to reach it counts as a veto.</div>
+      <div class="v">can veto · cannot place</div>
+    </div>
+    <div class="layer gate">
+      <div class="t">4 · Hard Gate <span style="color:var(--muted);font-weight:400">— no model at all</span></div>
+      <div class="d">Computes the worst case from the option legs itself rather than trusting the figure attached to the proposal. Unbounded risk is rejected outright, never sized down.</div>
+      <div class="v">1.5% per trade · 6% portfolio · −3% daily stop · the only layer that can approve</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Decision log</h2>
+  <div class="feed" id="feed"><div class="empty">Loading the journal…</div></div>
+</section>
+
+<footer>
+  <p>
+    Built for the <a href="https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-hackathon">Alpaca AI Trading Agents Hackathon</a>,
+    28 August – 4 September 2026. Source: <a href="https://github.com/Sebastian0890/onenode-options-agent">github.com/Sebastian0890/onenode-options-agent</a>.
+  </p>
+  <p>
+    This page reads <code>journal/trades.jsonl</code>, which the agent commits back to the repository after every run.
+    Paper trading is a simulation: it involves no actual securities transactions and no real funds, and hypothetical
+    results do not represent actual trading. Nothing here is investment advice.
+  </p>
+</footer>
+
+</div>
+
+<script>
+const LABELS = {
+  run_started: "run started", account_state: "account", market_closed: "market closed",
+  preflight_failed: "preflight failed", candidates_found: "candidates", proposal: "proposal",
+  gate_approved: "gate approved", gate_blocked: "gate blocked",
+  risk_officer_veto: "risk officer veto", order_placed: "order placed",
+  order_failed: "order failed", position_closed: "position closed", halted: "halted",
+  no_new_positions: "no new positions", stood_aside: "stood aside",
+  proposer_failed: "proposer failed", data_failed: "data failed",
+};
+const INTERESTING = new Set([
+  "order_placed", "order_failed", "gate_blocked", "gate_approved", "risk_officer_veto",
+  "proposal", "position_closed", "halted", "preflight_failed", "no_new_positions",
+]);
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function stat(n, k) {
+  return `<div class="stat"><div class="n">${esc(n)}</div><div class="k">${esc(k)}</div></div>`;
+}
+
+function render(rows) {
+  const runs = new Set(rows.filter(r => r.run_id).map(r => r.run_id));
+  const count = e => rows.filter(r => r.event === e).length;
+  const latest = [...rows].reverse().find(r => r.event === "account_state");
+
+  const cells = [
+    stat(runs.size, "agent runs"),
+    stat(count("order_placed"), "orders placed"),
+    stat(count("position_closed"), "positions closed"),
+    stat(count("risk_officer_veto"), "vetoed by review"),
+    stat(count("gate_blocked"), "blocked by the gate"),
+  ];
+  if (latest && latest.day_pnl_pct !== undefined) {
+    const p = Number(latest.day_pnl_pct);
+    cells.unshift(stat((p >= 0 ? "+" : "") + p.toFixed(2) + "%", "day P&L, last run"));
+  }
+  if (latest && latest.equity !== undefined) {
+    cells.unshift(stat("$" + Number(latest.equity).toLocaleString("en-US"), "equity"));
+  }
+  document.getElementById("stats").innerHTML = cells.join("");
+
+  const feed = rows.filter(r => INTERESTING.has(r.event)).slice(-60).reverse();
+  const el = document.getElementById("feed");
+  if (!feed.length) {
+    el.innerHTML = `<div class="empty">No decisions recorded yet. The agent writes here on every run —
+      including the runs where it decided to do nothing.</div>`;
+    return;
+  }
+
+  el.innerHTML = feed.map(r => {
+    const bits = [];
+    if (r.candidate) bits.push(esc(r.candidate));
+    if (r.contracts !== undefined) bits.push(esc(r.contracts) + "x");
+    if (r.credit !== undefined) bits.push("credit $" + esc(r.credit));
+    if (r.risk !== undefined) bits.push("risk $" + esc(r.risk));
+    if (r.order_id) bits.push(esc(r.order_id));
+
+    const prose = [];
+    if (r.rationale) prose.push(esc(r.rationale));
+    if (r.reason) prose.push(esc(r.reason));
+    if (Array.isArray(r.violations)) r.violations.forEach(v => prose.push("— " + esc(v)));
+
+    return `<div class="ev t-${esc(r.event)}">
+      <div class="h">
+        <span class="tag">${esc(LABELS[r.event] || r.event)}</span>
+        <span class="ts">${esc(String(r.ts || "").slice(0, 19).replace("T", " "))}Z</span>
+      </div>
+      ${prose.length ? `<div class="body">${prose.join("<br>")}</div>` : ""}
+      ${bits.length ? `<div class="meta">${bits.join("  ·  ")}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+fetch("journal/trades.jsonl", { cache: "no-store" })
+  .then(r => r.ok ? r.text() : Promise.reject(new Error(r.status)))
+  .then(text => {
+    const rows = text.split("\n").map(l => l.trim()).filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    render(rows);
+  })
+  .catch(() => {
+    document.getElementById("stats").innerHTML = stat("—", "no journal yet");
+    document.getElementById("feed").innerHTML =
+      `<div class="empty">The journal has not been written yet. It appears here after the agent's first run.</div>`;
+  });
+</script>
+</body>
+</html>
