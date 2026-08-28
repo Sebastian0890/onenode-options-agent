@@ -12,6 +12,7 @@ public and timestamped by something other than ourselves.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, date, datetime
 from enum import Enum
@@ -46,6 +47,20 @@ class Journal:
         self.run_id = run_id
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
+    def _ends_without_newline(self) -> bool:
+        """True if a previous write was cut off mid-line.
+
+        A scheduled job can be cancelled or run out of disk between writing a
+        line and writing its newline. Appending straight onto that stub would
+        splice the next entry onto the broken one and lose both, so the damage
+        has to be confined to the line that was actually truncated.
+        """
+        if not self.path.exists() or self.path.stat().st_size == 0:
+            return False
+        with self.path.open("rb") as handle:
+            handle.seek(-1, os.SEEK_END)
+            return handle.read(1) != b"\n"
+
     def record(self, event: str, **data: Any) -> dict[str, Any]:
         """Append one event. Returns what was written, for logging to stdout."""
         entry = {
@@ -54,7 +69,10 @@ class Journal:
             "event": event,
             **{key: _encode(value) for key, value in data.items()},
         }
+        repair = self._ends_without_newline()
         with self.path.open("a", encoding="utf-8") as handle:
+            if repair:
+                handle.write("\n")
             handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
         return entry
 
@@ -105,6 +123,10 @@ def render_markdown(entries: list[dict[str, Any]], limit: int = 60) -> str:
         "",
     ]
 
+    # Failures belong here as much as trades do. A run that stopped because a
+    # credential was missing is the most informative thing that can happen, and
+    # leaving it out would make the agent look like it simply had nothing to say.
+    # Keep in sync with INTERESTING in index.html.
     interesting = {
         "order_placed",
         "order_failed",
@@ -113,7 +135,15 @@ def render_markdown(entries: list[dict[str, Any]], limit: int = 60) -> str:
         "risk_officer_veto",
         "proposal",
         "position_closed",
+        "close_failed",
         "halted",
+        "preflight_failed",
+        "no_new_positions",
+        "proposer_failed",
+        "proposal_unusable",
+        "unsizeable",
+        "data_failed",
+        "error",
     }
     recent = [e for e in entries if e.get("event") in interesting][-limit:]
 

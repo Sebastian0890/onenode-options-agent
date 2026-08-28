@@ -149,9 +149,16 @@ const LABELS = {
   no_new_positions: "no new positions", stood_aside: "stood aside",
   proposer_failed: "proposer failed", data_failed: "data failed",
 };
+// Every event that represents a decision or a refusal. Failures belong here as
+// much as trades do: a run that stopped because a credential was missing is the
+// most informative thing that can happen, and hiding it would make the agent
+// look like it simply had nothing to say.
+// Keep in sync with `interesting` in src/onenode/journal.py.
 const INTERESTING = new Set([
   "order_placed", "order_failed", "gate_blocked", "gate_approved", "risk_officer_veto",
-  "proposal", "position_closed", "halted", "preflight_failed", "no_new_positions",
+  "proposal", "position_closed", "close_failed", "halted", "preflight_failed",
+  "no_new_positions", "proposer_failed", "proposal_unusable", "unsizeable",
+  "data_failed", "error",
 ]);
 
 function esc(s) {
