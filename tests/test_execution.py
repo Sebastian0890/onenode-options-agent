@@ -95,14 +95,69 @@ class TestClosingLegs:
 
 
 class TestPricing:
-    def test_credit_limit_is_shaded_below_the_quoted_credit(self, candidate):
-        # $60 per contract is $0.60 per share; shaded by two cents.
-        assert limit_price_for_credit(candidate) == pytest.approx(0.58)
+    """Alpaca's mleg limit price is signed, and the sign carries the meaning.
 
-    def test_credit_limit_never_goes_to_zero(self, candidate):
-        assert limit_price_for_credit(candidate, slippage=99.0) == pytest.approx(0.01)
+    From the alpaca-py reference for LimitOrderRequest.limit_price: "For the
+    mleg order class, this is specified such that a positive value indicates a
+    debit ... while a negative value signifies a credit". Getting this backwards
+    submits a perfectly well-formed order on exactly the wrong terms, which is
+    why it has its own tests rather than living inside a broader one.
+    """
 
-    def test_closing_price_is_a_positive_debit_with_a_cushion(self):
+    def test_a_credit_is_submitted_as_a_negative_price(self, candidate):
+        assert limit_price_for_credit(candidate) < 0
+
+    def test_credit_limit_is_shaded_toward_zero_to_help_the_fill(self, candidate):
+        # $60 per contract is $0.60 per share; asking two cents less credit.
+        assert limit_price_for_credit(candidate) == pytest.approx(-0.58)
+
+    def test_credit_limit_never_reaches_zero(self, candidate):
+        """A credit order collecting nothing is a debit order wearing the wrong sign."""
+        assert limit_price_for_credit(candidate, slippage=99.0) == pytest.approx(-0.01)
+
+    def test_closing_a_credit_spread_is_a_positive_debit(self):
+        """Opening pays us, closing costs us. Same convention, opposite sign."""
+        groups = group_option_positions(
+            [
+                {
+                    "asset_class": "us_option",
+                    "symbol": "SPY260831P00764000",
+                    "qty": "2",
+                    "side": "short",
+                    "market_value": "-90",
+                    "cost_basis": "-240",
+                    "unrealized_pl": "150",
+                },
+                {
+                    "asset_class": "us_option",
+                    "symbol": "SPY260831P00759000",
+                    "qty": "2",
+                    "side": "long",
+                    "market_value": "40",
+                    "cost_basis": "120",
+                    "unrealized_pl": "-80",
+                },
+            ]
+        )
+        assert closing_limit_price(groups[0]) > 0
+
+    def test_opening_and_closing_carry_opposite_signs(self, candidate):
+        groups = group_option_positions(
+            [
+                {
+                    "asset_class": "us_option",
+                    "symbol": "SPY260831P00764000",
+                    "qty": "1",
+                    "side": "short",
+                    "market_value": "-60",
+                    "cost_basis": "-120",
+                    "unrealized_pl": "60",
+                }
+            ]
+        )
+        assert limit_price_for_credit(candidate) * closing_limit_price(groups[0]) < 0
+
+    def test_closing_price_is_the_mark_plus_a_cushion(self):
         groups = group_option_positions(
             [
                 {
@@ -162,3 +217,13 @@ class TestOrderArgs:
     def test_limit_price_is_always_two_decimals(self, candidate):
         args = build_order_args(leg_payload(candidate), 1, 0.5)
         assert args[args.index("--limit-price") + 1] == "0.50"
+
+    def test_a_negative_limit_survives_into_the_argument_list(self, candidate):
+        """Verified against the CLI: it accepts -0.58 and echoes it back intact."""
+        args = build_order_args(leg_payload(candidate), 1, -0.58)
+        assert args[args.index("--limit-price") + 1] == "-0.58"
+
+    def test_the_real_credit_price_reaches_the_argument_list_signed(self, candidate):
+        price = limit_price_for_credit(candidate)
+        args = build_order_args(leg_payload(candidate), 1, price)
+        assert args[args.index("--limit-price") + 1].startswith("-")

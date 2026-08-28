@@ -75,14 +75,31 @@ def closing_leg_payload(legs: Iterable[OptionLeg]) -> list[dict[str, str]]:
 def limit_price_for_credit(
     candidate: SpreadCandidate | IronCondorCandidate, slippage: float = 0.02
 ) -> float:
-    """Net credit to ask for, per share, shaded to make the fill likely.
+    """Net credit to ask for, per share, as a NEGATIVE number.
+
+    Alpaca's mleg limit price is signed, and the sign is the whole meaning:
+
+        "For the mleg order class, this is specified such that a positive value
+        indicates a debit (representing a cost or payment to be made) while a
+        negative value signifies a credit (reflecting an amount to be
+        received)."
+        - alpaca-py API reference, LimitOrderRequest.limit_price
+
+    So a credit spread submitted at a positive limit tells the broker we are
+    willing to *pay* to open a position whose entire purpose is to pay us. The
+    order would not fill on the terms intended, and nothing in the request
+    would look wrong.
 
     The candidate is priced at short-bid minus long-ask, already the worst
-    realistic fill. Shading a further couple of cents buys fill probability on
-    a position that earns its money by being opened at all.
+    realistic fill. Shading a couple of cents further - toward zero, asking for
+    less credit - buys fill probability on a position that earns its money by
+    being opened at all.
     """
     credit_per_share = candidate.credit_per_contract / CONTRACT_MULTIPLIER
-    return max(round(credit_per_share - slippage, 2), 0.01)
+    asked = round(credit_per_share - slippage, 2)
+    # Never ask for zero or less: a credit order that collects nothing is a
+    # debit order wearing the wrong sign.
+    return min(-asked, -0.01)
 
 
 def build_order_args(
@@ -172,11 +189,15 @@ def close_position(
 
 
 def closing_limit_price(group: PositionGroup, cushion: float = 0.05) -> float:
-    """Net debit to bid for the buy-back, per share.
+    """Net debit to pay for the buy-back, per share, as a POSITIVE number.
+
+    Positive is correct here and negative is correct on the way in, which looks
+    inconsistent until you read the sign as cash direction: opening a credit
+    spread pays us, closing one costs us. Same convention, opposite trade.
 
     Derived from what the position is currently marked at, plus a cushion so a
     small adverse move between the quote and the fill does not leave the
-    position open. Floored at a cent, since a limit of zero never fills.
+    position open. An exit that does not fill is not an exit.
     """
     per_share = abs(group.market_value) / (CONTRACT_MULTIPLIER * max(group.contracts, 1))
     return max(round(per_share + cushion, 2), 0.01)
