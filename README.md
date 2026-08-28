@@ -62,6 +62,23 @@ guaranteed to be the quote it trades against, so the agent refuses the cases
 where that gap is most likely to bite instead of pretending the data is better
 than it is.
 
+## Alpaca surfaces used
+
+**The CLI drives the autonomous loop.** The agent wakes on a schedule, looks around, acts
+at most once and exits — the long-running-agent-session case Alpaca built the CLI for — and
+every action it takes is a command a human can paste into a terminal and reproduce. Orders
+go as a single `order_class: mleg` limit order, verified against the broker's own `--dry-run`.
+
+**The MCP server handles interactive analysis.** [`.mcp.json`](.mcp.json) wires up
+`uvx alpaca-mcp-server` for conversational inspection of the account and the chain alongside
+a run. It is deliberately not in the scheduled job, where it would add latency without adding
+anything the CLI does not already give.
+
+```bash
+export ALPACA_API_KEY=PK... ALPACA_SECRET_KEY=...
+uvx alpaca-mcp-server
+```
+
 ## Running the tests
 
 ```bash
@@ -72,6 +89,11 @@ pytest
 
 The risk layer has no dependencies, no network calls and no model calls, so the
 tests run offline in under a second.
+
+## The write-up
+
+[`ONEPAGER.md`](ONEPAGER.md) — the AI logic, the risk gates, and the Alpaca implementation
+on one page.
 
 ## Status
 
