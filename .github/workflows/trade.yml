@@ -1,0 +1,104 @@
+name: trade
+
+# The agent runs as a scheduled job rather than a daemon: it wakes, looks
+# around, acts at most once, and exits. Nothing is carried in memory between
+# runs, so a missed firing costs one window and nothing else.
+#
+# Cron is UTC. US regular trading hours are 13:30-20:00 UTC while the east
+# coast is on EDT, so this fires every 15 minutes across the session and lets
+# the first step decide whether the market is actually open - Alpaca's own
+# clock endpoint handles holidays and early closes without a calendar here.
+on:
+  schedule:
+    - cron: "*/15 13-20 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and validate the order without submitting it"
+        type: boolean
+        default: false
+
+# Runs must never overlap. Two agents reading the same account a second apart
+# would each size a position against exposure the other has not placed yet.
+concurrency:
+  group: onenode-trade
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --extra dev
+
+      - name: Install the Alpaca CLI
+        run: |
+          set -euo pipefail
+          version="$(gh api repos/alpacahq/cli/releases/latest --jq .tag_name | tr -d v)"
+          curl -fsSL -o cli.tar.gz \
+            "https://github.com/alpacahq/cli/releases/download/v${version}/cli_${version}_linux_amd64.tar.gz"
+          mkdir -p bin && tar -xzf cli.tar.gz -C bin alpaca
+          chmod +x bin/alpaca
+          bin/alpaca version
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Authenticate
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ALPACA_API_KEY}" ]; then
+            echo "ALPACA_API_KEY secret is not set" >&2
+            exit 1
+          fi
+          # Paper keys start with PK. Refusing anything else here means a live
+          # key pasted into the wrong secret cannot reach the order endpoint.
+          case "${ALPACA_API_KEY}" in
+            PK*) ;;
+            *) echo "Key does not start with PK - refusing to run against live." >&2; exit 1 ;;
+          esac
+          bin/alpaca profile login --api-key --paper \
+            --key "${ALPACA_API_KEY}" --secret "${ALPACA_SECRET_KEY}" --quiet
+
+      - name: Run the agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FEATHERLESS_API_KEY: ${{ secrets.FEATHERLESS_API_KEY }}
+          ALPACA_CLI_PATH: ${{ github.workspace }}/bin/alpaca
+          ONENODE_DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+        run: uv run python -m onenode.agent
+
+      - name: Commit the journal
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain journal/)" ]; then
+            echo "Nothing new in the journal."
+            exit 0
+          fi
+          git config user.name "onenode-agent"
+          git config user.email "onenode-agent@users.noreply.github.com"
+          git add journal/
+          git commit -m "journal: run $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Another firing may have pushed while this one was trading.
+          for attempt in 1 2 3; do
+            if git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "Could not push the journal after three attempts." >&2
+          exit 1

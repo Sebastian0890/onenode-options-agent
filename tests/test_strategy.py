@@ -56,17 +56,13 @@ class TestPutCreditSpreads:
 
     def test_priced_at_the_fill_not_at_the_mid(self):
         """short bid minus long ask, which is what a marketable order collects."""
-        candidates = build_credit_spreads(
-            PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY
-        )
+        candidates = build_credit_spreads(PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY)
         spread = next(c for c in candidates if c.short_leg.strike == 764)
         # 1.20 bid on the short, 0.60 ask on the long: $60, not the $62 mid-to-mid.
         assert spread.credit_per_contract == pytest.approx(60.0)
 
     def test_max_loss_is_width_less_credit(self):
-        candidates = build_credit_spreads(
-            PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY
-        )
+        candidates = build_credit_spreads(PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY)
         spread = next(c for c in candidates if c.short_leg.strike == 764)
         assert spread.width == pytest.approx(5.0)
         assert spread.max_loss_per_contract == pytest.approx(440.0)
@@ -167,9 +163,7 @@ class TestCallSpreads:
 
 class TestHandoffToTheGate:
     def test_produces_a_trade_the_gate_can_evaluate(self):
-        candidate = build_credit_spreads(
-            PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY
-        )[0]
+        candidate = build_credit_spreads(PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY)[0]
         trade = candidate.to_proposed_trade(contracts=3, now=QUOTED_AT)
         assert trade.contracts == 3
         assert trade.net_cash == pytest.approx(candidate.credit_per_contract * 3)
@@ -179,9 +173,7 @@ class TestHandoffToTheGate:
     def test_the_gate_agrees_with_the_candidates_own_arithmetic(self):
         from onenode.risk.payoff import worst_case_loss
 
-        candidate = build_credit_spreads(
-            PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY
-        )[0]
+        candidate = build_credit_spreads(PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY)[0]
         trade = candidate.to_proposed_trade(contracts=2, now=QUOTED_AT)
         assert worst_case_loss(trade.legs, trade.contracts, trade.net_cash) == pytest.approx(
             candidate.max_loss_per_contract * 2
@@ -190,21 +182,15 @@ class TestHandoffToTheGate:
 
 class TestSizing:
     def test_largest_count_that_fits_the_budget(self):
-        candidate = build_credit_spreads(
-            PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY
-        )[0]
+        candidate = build_credit_spreads(PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY)[0]
         # $1,500 budget against $440 of risk per contract.
         assert size_position(candidate, 100_000, max_risk_pct=1.5, max_contracts=25) == 3
 
     def test_capped_by_the_per_order_limit(self):
-        candidate = build_credit_spreads(
-            PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY
-        )[0]
+        candidate = build_credit_spreads(PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY)[0]
         assert size_position(candidate, 10_000_000, max_risk_pct=1.5, max_contracts=25) == 25
 
     def test_returns_zero_rather_than_rounding_up_to_one(self):
-        candidate = build_credit_spreads(
-            PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY
-        )[0]
+        candidate = build_credit_spreads(PUT_CHAIN, underlying="SPY", widths=(5.0,), today=TODAY)[0]
         # A $5,000 account cannot afford even one contract of $440 risk at 1.5%.
         assert size_position(candidate, 5_000, max_risk_pct=1.5, max_contracts=25) == 0

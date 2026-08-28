@@ -1,0 +1,35 @@
+name: ci
+
+# The risk layer has no network calls and no model calls, so the whole suite
+# runs offline in seconds. There is no reason for a broken gate to ever reach
+# a trading run.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["journal/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --extra dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Test
+        run: uv run pytest -q

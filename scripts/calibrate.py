@@ -44,9 +44,7 @@ def main() -> int:
 
     print("\nreward-to-risk floor sweep (delta 0.17 +/- 0.08, all widths):")
     for floor in (0.0, 0.05, 0.10, 0.15, 0.20, 0.30):
-        found = build_credit_spreads(
-            quotes, underlying=underlying, min_reward_to_risk=floor
-        )
+        found = build_credit_spreads(quotes, underlying=underlying, min_reward_to_risk=floor)
         best = found[0].reward_to_risk if found else 0.0
         print(f"  floor {floor:.2f} -> {len(found):4d} candidates, best r/r {best:.3f}")
 

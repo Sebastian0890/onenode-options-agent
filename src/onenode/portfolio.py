@@ -31,11 +31,43 @@ class PositionGroup:
     legs: tuple[OptionLeg, ...]
     contracts: int
     market_value: float
+    cost_basis: float = 0.0
+    unrealized_pl: float = 0.0
 
     @property
     def remaining_risk(self) -> float | None:
         """Additional dollars this structure can still lose, or ``None`` if unbounded."""
         return remaining_risk(self.legs, self.contracts, self.market_value)
+
+    @property
+    def credit_received(self) -> float:
+        """Premium collected when the structure was opened.
+
+        A short structure has a negative cost basis - cash came in - so the
+        credit is its magnitude. Long structures return 0, since they were paid
+        for rather than sold.
+        """
+        return max(-self.cost_basis, 0.0)
+
+    @property
+    def profit_capture(self) -> float:
+        """Fraction of the maximum profit already earned, 0.0 to 1.0 and beyond.
+
+        The number the exit rule is written against: a credit spread's best case
+        is keeping the whole credit, so 0.5 means half of it is banked and the
+        remaining half is no longer worth the risk of holding for.
+        """
+        credit = self.credit_received
+        if credit <= 0:
+            return 0.0
+        return self.unrealized_pl / credit
+
+    @property
+    def key(self) -> str:
+        return f"{self.underlying}:{self.expiry}"
+
+    def days_to_expiry(self, today: date) -> int:
+        return (self.expiry - today).days
 
 
 def _to_float(value: Any) -> float:
@@ -52,7 +84,7 @@ def group_option_positions(positions: list[dict[str, Any]]) -> list[PositionGrou
     anything else is either a leftover or someone else's trade, and in both
     cases it is not ours to reason about.
     """
-    buckets: dict[tuple[str, date], list[tuple[OptionLeg, float]]] = defaultdict(list)
+    buckets: dict[tuple[str, date], list[tuple[OptionLeg, dict[str, float]]]] = defaultdict(list)
 
     for position in positions:
         if position.get("asset_class") != "us_option":
@@ -72,7 +104,16 @@ def group_option_positions(positions: list[dict[str, Any]]) -> list[PositionGrou
         except ValueError:
             continue
 
-        buckets[(leg.root, leg.expiry)].append((leg, _to_float(position.get("market_value"))))
+        buckets[(leg.root, leg.expiry)].append(
+            (
+                leg,
+                {
+                    "market_value": _to_float(position.get("market_value")),
+                    "cost_basis": _to_float(position.get("cost_basis")),
+                    "unrealized_pl": _to_float(position.get("unrealized_pl")),
+                },
+            )
+        )
 
     groups: list[PositionGroup] = []
     for (underlying, expiry), entries in sorted(buckets.items()):
@@ -98,7 +139,9 @@ def group_option_positions(positions: list[dict[str, Any]]) -> list[PositionGrou
                 expiry=expiry,
                 legs=legs,
                 contracts=contracts,
-                market_value=sum(value for _, value in entries),
+                market_value=sum(values["market_value"] for _, values in entries),
+                cost_basis=sum(values["cost_basis"] for _, values in entries),
+                unrealized_pl=sum(values["unrealized_pl"] for _, values in entries),
             )
         )
     return groups
