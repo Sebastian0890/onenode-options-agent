@@ -259,6 +259,55 @@ class TestHappyPath:
         assert "--dry-run" in cli.orders[0]
 
 
+class TestDuplicateStructures:
+    """Two identical spreads merge into one position group.
+
+    That makes the max-positions ceiling blind to them: the agent could buy the
+    same strike pair every fifteen minutes and concentrate the whole risk budget
+    into one structure without the position count ever moving.
+    """
+
+    OPEN_ALREADY = [
+        {
+            "asset_class": "us_option",
+            "symbol": "SPY260904P00764000",
+            "qty": "1",
+            "side": "short",
+            "market_value": "-100",
+            "cost_basis": "-120",
+            "unrealized_pl": "20",
+        },
+        {
+            "asset_class": "us_option",
+            "symbol": "SPY260904P00759000",
+            "qty": "1",
+            "side": "long",
+            "market_value": "45",
+            "cost_basis": "60",
+            "unrealized_pl": "-15",
+        },
+    ]
+
+    def test_a_structure_already_open_is_not_offered_again(self, journal, accepting):
+        cli = FakeCLI(positions=self.OPEN_ALREADY)
+        result = run(cli, journal)
+        assert result.orders_placed == 0
+        assert result.status == "no_candidates"
+
+    def test_the_filtering_is_recorded(self, journal, accepting):
+        run(FakeCLI(positions=self.OPEN_ALREADY), journal)
+        events = [e["event"] for e in journal.entries()]
+        assert "duplicates_filtered" in events
+
+    def test_a_different_structure_still_gets_through(self, journal, accepting):
+        other = [dict(p) for p in self.OPEN_ALREADY]
+        other[0]["symbol"] = "SPY260904P00755000"
+        other[1]["symbol"] = "SPY260904P00750000"
+        cli = FakeCLI(positions=other)
+        result = run(cli, journal)
+        assert result.orders_placed == 1
+
+
 class TestUnmeasurableRisk:
     def test_an_unbounded_open_position_blocks_new_trades(self, journal, accepting):
         """Not knowing the exposure is treated as infinite exposure."""

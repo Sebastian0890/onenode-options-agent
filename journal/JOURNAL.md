@@ -12,12 +12,12 @@ Paper trading only - no real capital at any point.
 
 ## Recent activity
 
-**2026-08-28 22:21:59Z — `gate_blocked`**
+**2026-08-28 22:24:15Z — `gate_blocked`**
 - candidate: SPY260904P00764000/SPY260904P00759000
 - contracts: 3
 - violations: portfolio risk $inf ($inf open + $1,320.00 new) exceeds ceiling $6,000.00
 
-**2026-08-28 22:21:59Z — `proposal`**
+**2026-08-28 22:24:15Z — `proposal`**
 - candidate: SPY260904P00764000/SPY260904P00759000
 - rationale: looks fine
 

@@ -217,6 +217,25 @@ def run_once(
         candidates += put_spreads
         candidates += call_spreads
 
+    # A structure identical to one already open would merge back into the same
+    # position group rather than counting as a second one, so the max-positions
+    # ceiling would never notice it. The agent could then buy the same spread
+    # every fifteen minutes and concentrate the entire risk budget into one
+    # strike pair - the opposite of what a position limit is for.
+    already_open = {frozenset(leg.symbol for leg in group.legs) for group in groups}
+
+    def is_already_open(candidate) -> bool:
+        return frozenset(leg.symbol for leg in candidate.legs) in already_open
+
+    fresh = [c for c in candidates if not is_already_open(c)]
+    if len(fresh) != len(candidates):
+        note(
+            "duplicates_filtered",
+            contracts=len(candidates) - len(fresh),
+            reason="already open; adding to them would concentrate risk in one structure",
+        )
+        candidates = fresh
+
     candidates.sort(key=lambda c: -c.reward_to_risk)
     note(
         "candidates_found",
