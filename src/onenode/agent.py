@@ -34,7 +34,7 @@ from .regime import Regime, from_bars
 from .risk.gate import evaluate
 from .risk.limits import DEFAULT_LIMITS, RiskLimits
 from .risk.models import AccountSnapshot, Right
-from .strategy import build_credit_spreads, build_iron_condors, rank, size_position
+from .strategy import MAX_MENU, build_credit_spreads, build_iron_condors, rank, size_position
 
 DEFAULT_UNDERLYINGS = ("SPY", "QQQ", "IWM")
 
@@ -291,18 +291,21 @@ def run_once(
         )
 
     # --- 6. Propose -------------------------------------------------------
-    primary = candidates[0].underlying
+    # Every underlying the menu draws from, not the one that happened to rank
+    # first. The list is merged and ranked across all of them.
+    on_menu = {candidate.underlying for candidate in candidates[:MAX_MENU]}
     try:
         decision = propose_trade(
             candidates,
-            underlying=primary,
-            spot=spots.get(primary, 0.0),
+            spots={symbol: spots[symbol] for symbol in on_menu if symbol in spots},
             day_pnl_pct=snapshot.day_pnl_pct,
             equity=snapshot.equity,
             open_positions=len(groups),
             committed_risk=snapshot.committed_risk,
             minutes_to_close=clock.minutes_to_close,
-            regime=regimes.get(primary, Regime.unavailable(primary)).describe(),
+            regime="\n".join(
+                f"  {regimes[symbol].describe()}" for symbol in sorted(on_menu) if symbol in regimes
+            ),
         )
     except Exception as exc:  # noqa: BLE001 - a broken proposer must not trade
         note("proposer_failed", reason=str(exc))

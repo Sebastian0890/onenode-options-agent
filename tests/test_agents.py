@@ -50,8 +50,7 @@ def candidates():
 
 
 MARKET = {
-    "underlying": "SPY",
-    "spot": 769.0,
+    "spots": {"SPY": 769.0},
     "day_pnl_pct": 0.1,
     "equity": 100_000.0,
     "open_positions": 0,
@@ -113,6 +112,29 @@ class TestProposer:
             [], **MARKET, ask=lambda **kw: pytest.fail("a model was called with no candidates")
         )
         assert decision.action == "stand_aside"
+
+    def test_every_underlying_on_the_menu_is_priced(self, candidates):
+        """The menu is one ranked list merged across SPY, QQQ and IWM. Naming a
+        single spot leaves the model judging a QQQ strike against SPY's price,
+        and the two are hundreds of points apart."""
+        seen: dict = {}
+
+        def _ask(**kwargs):
+            seen.update(kwargs)
+            return llm.Reply(payload={"action": "stand_aside"}, provider="p", model="m")
+
+        propose_trade(
+            candidates,
+            spots={"SPY": 769.0, "QQQ": 612.4, "IWM": 233.1},
+            day_pnl_pct=0.1,
+            equity=100_000.0,
+            open_positions=0,
+            committed_risk=0.0,
+            minutes_to_close=180.0,
+            ask=_ask,
+        )
+        for symbol, price in (("SPY", "769.00"), ("QQQ", "612.40"), ("IWM", "233.10")):
+            assert f"{symbol} spot: {price}" in seen["user"]
 
     def test_an_unreachable_model_propagates(self, candidates):
         """The run loop turns this into a journalled failure; swallowing it here

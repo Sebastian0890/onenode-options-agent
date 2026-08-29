@@ -74,8 +74,7 @@ class ProposerDecision(BaseModel):
 def build_prompt(
     candidates: list[Candidate],
     *,
-    underlying: str,
-    spot: float,
+    spots: dict[str, float],
     day_pnl_pct: float,
     equity: float,
     open_positions: int,
@@ -83,12 +82,19 @@ def build_prompt(
     minutes_to_close: float,
     regime: str = "",
 ) -> str:
-    """Assemble the market picture and the menu into one message."""
+    """Assemble the market picture and the menu into one message.
+
+    Every underlying on the menu gets its own spot line. The menu is one ranked
+    list drawn from all of them, so naming a single spot would leave the model
+    judging a QQQ strike against SPY's price - which is not a subtle error when
+    the two are hundreds of points apart.
+    """
     menu = "\n".join(f"  {candidate.describe()}" for candidate in candidates[:MAX_CANDIDATES])
+    prices = "\n".join(f"  {symbol} spot: {price:,.2f}" for symbol, price in sorted(spots.items()))
     return f"""Market
-  {underlying} spot: {spot:,.2f}
+{prices}
   minutes to close: {minutes_to_close:.0f}
-  {regime or "regime not assessed"}
+{regime or "  regime not assessed"}
 
 Account
   equity: ${equity:,.2f}
@@ -105,8 +111,7 @@ Choose one candidate key from the list above, or stand aside."""
 def propose_trade(
     candidates: list[Candidate],
     *,
-    underlying: str,
-    spot: float,
+    spots: dict[str, float],
     day_pnl_pct: float,
     equity: float,
     open_positions: int,
@@ -133,8 +138,7 @@ def propose_trade(
         system=SYSTEM,
         user=build_prompt(
             candidates,
-            underlying=underlying,
-            spot=spot,
+            spots=spots,
             day_pnl_pct=day_pnl_pct,
             equity=equity,
             open_positions=open_positions,
