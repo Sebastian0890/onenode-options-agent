@@ -120,6 +120,34 @@ The expectancy figures are still computed, shown to the Proposer and written to 
 *ordering* they give between two candidates is real. Their zero point is not, and the code now
 says so where someone might otherwise trust it.
 
+### The target that was decorative
+
+One more filter turned out to be describing something it did not do, and it took measuring the menu
+rather than reading the code to see it.
+
+The strategy targets a short strike near **0.17 delta** — roughly a five-in-six chance of expiring
+worthless. Candidates were then ranked by reward-to-risk before being shown to the Proposer. Both
+halves look right. Together they are not, because **reward-to-risk rises monotonically with the
+short delta**: more delta is more premium is more credit against the same width. Ranking by it sorts
+candidates by precisely the quantity the delta band exists to limit, so whatever sits at the band's
+upper edge wins every time.
+
+Measured against the live SPY chain, the twenty-five candidates the model actually saw had a median
+short delta of **0.241**, with twenty of the twenty-five clustered at 0.22 and 0.24. The target was
+decorative. And the Proposer's own instructions say the edge is win rate rather than size of win —
+it was being handed a menu ranked by the opposite, then asked to prefer safety.
+
+Ranking by `edge` instead was tried and rejected. It fixes the direction and is not stable: the
+menu's median moved to 0.127 with eight-dollar credits, and where it landed depended on the
+reward-to-risk floor rather than on the market — 0.198 at a floor of 0.10, 0.127 at 0.05. A ranking
+that moves when an unrelated threshold moves is not measuring what it claims to.
+
+So the ranking now says what the strategy says: **get near the target delta, and among candidates
+equally near it, take the one that pays best.** Median short delta became 0.179, the range tightened
+to 0.147–0.198, and the mean implied win rate rose from 77.0% to 82.1% — close to target under both
+floors, which is the property the other two orderings lacked. `scripts/calibrate.py` prints that
+median on every run, so a later change to the ranking cannot quietly undo it.
+
 ### Not selling the side the market is moving against
 
 A put credit spread is a bet that the market will not fall much. Sold into a market that is already

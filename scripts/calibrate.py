@@ -112,7 +112,7 @@ def main() -> int:
     by_expiry = Counter(str(c.expiry) for c in everything)
     print(f"\ncandidates by expiry: {dict(sorted(by_expiry.items()))}")
 
-    print("\ntop 8 by reward-to-risk:")
+    print("\ntop 8 as ranked (nearest the target delta, best-paid among equals):")
     for candidate in everything[:8]:
         contracts = size_position(candidate, EQUITY, max_risk_pct=1.5, max_contracts=25)
         print(f"  {candidate.describe()} | size {contracts}")
