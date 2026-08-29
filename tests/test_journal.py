@@ -98,6 +98,41 @@ class TestRendering:
         assert "Trade journal" in path.read_text(encoding="utf-8")
 
 
+class TestMarkdownStaysBesideItsOwnJournal:
+    """A test journal must never touch the real repository's journal/JOURNAL.md.
+
+    That happened once: every call site rendered to a hardcoded
+    "journal/JOURNAL.md" regardless of which .jsonl file the Journal actually
+    wrapped, so running the test suite against a tmp_path journal silently
+    overwrote the public decision record with fixture data under a
+    real-looking timestamp. The fix is that the markdown path is derived from
+    the journal's own path; these tests are what stop it drifting back apart.
+    """
+
+    def test_markdown_path_sits_next_to_the_jsonl_file(self, tmp_path):
+        journal = Journal(tmp_path / "sub" / "trades.jsonl", run_id="x")
+        assert journal.markdown_path == tmp_path / "sub" / "JOURNAL.md"
+
+    def test_write_markdown_writes_there_and_nowhere_else(self, tmp_path):
+        journal = Journal(tmp_path / "trades.jsonl", run_id="x")
+        journal.record("order_placed", candidate="SPY/A")
+
+        real_repo_journal = REPO_ROOT / "journal" / "JOURNAL.md"
+        before = (
+            real_repo_journal.read_text(encoding="utf-8") if real_repo_journal.exists() else None
+        )
+
+        written = journal.write_markdown()
+
+        assert written == tmp_path / "JOURNAL.md"
+        assert written.exists()
+        assert "SPY/A" in written.read_text(encoding="utf-8")
+        after = (
+            real_repo_journal.read_text(encoding="utf-8") if real_repo_journal.exists() else None
+        )
+        assert after == before, "a tmp_path journal must never touch the real repo journal"
+
+
 class TestDashboardStaysInSync:
     def test_the_dashboard_shows_exactly_what_the_markdown_shows(self):
         """Two hand-maintained lists of the same thing drift. This catches it."""

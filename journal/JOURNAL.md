@@ -7,17 +7,11 @@ Paper trading only - no real capital at any point.
 |---|---|
 | Runs | 1 |
 | Orders placed | 0 |
-| Blocked by the hard gate | 1 |
+| Blocked by the hard gate | 0 |
 | Vetoed by the risk officer | 0 |
 
 ## Recent activity
 
-**2026-08-28 22:24:15Z — `gate_blocked`**
-- candidate: SPY260904P00764000/SPY260904P00759000
-- contracts: 3
-- violations: portfolio risk $inf ($inf open + $1,320.00 new) exceeds ceiling $6,000.00
-
-**2026-08-28 22:24:15Z — `proposal`**
-- candidate: SPY260904P00764000/SPY260904P00759000
-- rationale: looks fine
+**2026-08-28 19:10:15Z — `proposer_failed`**
+- reason: ANTHROPIC_API_KEY is not set; the proposer cannot run
 

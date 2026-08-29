@@ -27,7 +27,7 @@ from .agents.proposer import find_candidate, propose_trade
 from .agents.risk_officer import review_trade
 from .broker.cli import AlpacaCLI, AlpacaCLIError
 from .execution import close_position, closing_limit_price, submit_spread
-from .journal import Journal, write_markdown
+from .journal import Journal
 from .management import DEFAULT_EXIT_RULES, ExitRules, positions_to_close
 from .portfolio import committed_risk, group_option_positions
 from .risk.gate import evaluate
@@ -148,7 +148,7 @@ def run_once(
                 f"{limits.daily_stop_pct:+.2f}%. No new positions this session."
             ),
         )
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="halted",
             detail="daily stop",
@@ -158,7 +158,7 @@ def run_once(
 
     if clock.minutes_to_close < limits.min_minutes_to_close:
         note("no_new_positions", reason=f"{clock.minutes_to_close:.0f}min to close")
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="too_late",
             positions_closed=result.positions_closed,
@@ -167,7 +167,7 @@ def run_once(
 
     if len(groups) >= limits.max_open_positions:
         note("no_new_positions", reason=f"{len(groups)} structures already open")
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="at_capacity",
             positions_closed=result.positions_closed,
@@ -244,7 +244,7 @@ def run_once(
     )
 
     if not candidates:
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="no_candidates",
             positions_closed=result.positions_closed,
@@ -266,7 +266,7 @@ def run_once(
         )
     except Exception as exc:  # noqa: BLE001 - a broken proposer must not trade
         note("proposer_failed", reason=str(exc))
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="proposer_failed",
             detail=str(exc),
@@ -277,7 +277,7 @@ def run_once(
     note("proposal", candidate=decision.candidate_key, rationale=decision.rationale)
 
     if decision.action != "trade":
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="stood_aside",
             detail=decision.rationale,
@@ -288,7 +288,7 @@ def run_once(
     candidate = find_candidate(candidates, decision.candidate_key)
     if candidate is None:
         note("proposal_unusable", reason=f"{decision.candidate_key!r} is not a live candidate")
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="stood_aside",
             positions_closed=result.positions_closed,
@@ -304,7 +304,7 @@ def run_once(
     )
     if contracts == 0:
         note("unsizeable", candidate=candidate.key, reason="one contract exceeds the budget")
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="unsizeable",
             positions_closed=result.positions_closed,
@@ -333,7 +333,7 @@ def run_once(
             reason=verdict.reason,
             verdict=verdict.reviewer,
         )
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="vetoed",
             detail=verdict.reason,
@@ -349,7 +349,7 @@ def run_once(
             contracts=contracts,
             violations=list(gate.violations),
         )
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="blocked",
             detail="; ".join(gate.violations),
@@ -377,7 +377,7 @@ def run_once(
         )
     except AlpacaCLIError as exc:
         note("order_failed", candidate=candidate.key, reason=str(exc))
-        write_markdown(journal.entries())
+        journal.write_markdown()
         return RunResult(
             status="order_failed",
             detail=str(exc),
@@ -396,7 +396,7 @@ def run_once(
         rationale=decision.rationale,
     )
 
-    write_markdown(journal.entries())
+    journal.write_markdown()
     return RunResult(
         status="traded",
         detail=candidate.key,

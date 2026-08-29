@@ -91,6 +91,22 @@ class Journal:
                 continue
         return rows
 
+    @property
+    def markdown_path(self) -> Path:
+        """Where the rendered digest for this journal belongs: right beside it.
+
+        Deriving this from the journal's own path, rather than hardcoding
+        "journal/JOURNAL.md" at every call site, is what keeps a test running
+        against a tmp_path journal from overwriting the real repository file -
+        that happened once, silently, and corrupted the public decision record
+        with fixture data under a real-looking timestamp.
+        """
+        return self.path.parent / "JOURNAL.md"
+
+    def write_markdown(self) -> Path:
+        """Render and save the digest next to this journal's own file."""
+        return write_markdown(self.entries(), self.markdown_path)
+
 
 def render_markdown(entries: list[dict[str, Any]], limit: int = 60) -> str:
     """A human-readable digest of the journal, for the repo and for the demo.
