@@ -61,6 +61,28 @@ class RiskLimits:
     min_reward_to_risk: float = 0.10
     """Reject premium so thin that one loss undoes many wins."""
 
+    max_execution_drag: float = 0.30
+    """Most of a structure's theoretical credit that may be handed to the
+    bid-ask spread on the way in.
+
+    This replaced a filter that looked more principled and was not. Comparing
+    the credit against the win rate implied by delta appears to test whether a
+    trade is worth taking, but options are priced so that the risk-neutral
+    expected value is about zero before costs - so that comparison measures the
+    bid-ask spread and calls it edge. On the calibration chain it scored a
+    perfectly ordinary SPY spread at -5.0%, which is almost exactly what
+    crossing the spread cost. A gate on it would have refused every trade for
+    the whole week and looked disciplined doing it.
+
+    Execution cost is the part a snapshot can settle honestly: it is paid on
+    every fill, in full, whatever happens next. Thirty percent is a wide floor
+    on purpose - it is meant to catch the illiquid strike whose spread eats the
+    trade, not to second-guess ordinary ones.
+
+    The expectancy figures themselves are still computed and still shown to the
+    Proposer and the journal, because the *ordering* they give between two
+    candidates is real even where their zero point is not."""
+
     def risk_budget_per_trade(self, equity: float) -> float:
         return equity * self.max_risk_per_trade_pct / 100.0
 

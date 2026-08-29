@@ -73,6 +73,7 @@ rather than sized down.
 | Expiry window | 0–7 DTE, single expiry |
 | No new positions | Final 30 minutes of the session |
 | Quote age / spread | 300s / 10% of mid |
+| Execution cost | Max 30% of the credit at mid |
 
 These live in code, not in a prompt. A limit in a prompt is a suggestion the model can argue with,
 and over a week of unattended running it eventually will.
@@ -87,6 +88,37 @@ losing money.
 Position sizing is derived from the risk budget, never proposed by a model. Exits need no model
 either: four arithmetic rules, checked expiry-first, because a short spread carried into its final
 hour is a coin flip with assignment attached and being green does not make it safe.
+
+### The filter that had to be thrown away
+
+The last row of that table replaced a filter that looked far more principled and was wrong.
+
+The idea was to compare what a spread pays against the odds the chain itself quotes: a short strike
+at 0.17 delta implies an 83% win rate, and a credit worth a quarter of the risk needs 80% to break
+even, so the 3-point gap is the edge — and anything with a negative gap could be refused before a
+model ever saw it. It is a clean argument and it survives about ten minutes of checking.
+
+Run it against a perfectly ordinary, liquid SPY spread from the calibration chain and it scores
+**−5.0%**. Not because that spread is mispriced, but because options are priced so that the
+risk-neutral expected value of *any* structure is about zero before costs. The −5.0% is what
+crossing the bid-ask costs, wearing the costume of an edge. A gate on that number being positive
+would have refused every trade for the entire week and looked disciplined doing it.
+
+What the premium seller is actually paid for — implied volatility running above realised — does
+not appear in delta at all, because delta is computed *from* implied volatility. Measuring it
+needs history, not arithmetic on a snapshot.
+
+So the arithmetic stayed and the gate moved to the one thing a snapshot can settle honestly:
+**how much of the theoretical credit is handed to the spread on the way in.** That cost is paid in
+full on every fill regardless of what happens next. It also turned out not to be redundant with
+the existing per-leg quote filter — SPY has dollar strikes, the agent prefers narrow spreads, and
+two legs each quoted respectably inside 10% of their own mid can still combine into a structure
+that gives away 41% of its premium, because the cost is charged against the *net* credit and the
+net credit of a narrow spread is small.
+
+The expectancy figures are still computed, shown to the Proposer and written to the journal. The
+*ordering* they give between two candidates is real. Their zero point is not, and the code now
+says so where someone might otherwise trust it.
 
 ## Alpaca infrastructure
 

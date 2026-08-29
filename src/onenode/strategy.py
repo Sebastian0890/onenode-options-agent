@@ -29,8 +29,94 @@ from .risk.payoff import worst_case_loss
 DEFAULT_WIDTHS: tuple[float, ...] = (1.0, 2.0, 3.0, 5.0)
 
 
+class Expectancy:
+    """How a structure prices up against the odds the chain is quoting.
+
+    These numbers are shown to the Proposer and written to the journal. They
+    are deliberately **not** a gate, and the reason is worth stating plainly,
+    because the obvious version of this check is wrong.
+
+    Options are priced so that the risk-neutral expected value of any
+    structure is about zero before costs. So a filter on "expected value above
+    zero", built from delta, measures the bid-ask spread and nothing else - it
+    would refuse every trade ever quoted, including the good ones. A negative
+    ``edge`` here is not a discovery about the market; on the calibration chain
+    it came to -5.0%, which is almost exactly what crossing the spread costs.
+
+    What the seller is actually paid for does not appear in delta at all: it is
+    the gap between implied and realised volatility, and delta is computed from
+    implied. Measuring that needs history, not arithmetic on a snapshot.
+
+    So what these are good for is comparison. Between two candidates, the one
+    whose credit sits better against its own quoted odds is the better-priced
+    trade, and that ordering is real even though its zero point is not.
+
+    The gate that does work on a snapshot is ``execution_drag``, below: how much
+    of the theoretical credit is handed to the spread on the way in. That one
+    measures a cost that is certain rather than an edge that is not.
+    """
+
+    credit_per_contract: float
+    mid_credit_per_contract: float
+    reward_to_risk: float
+    short_delta: float
+
+    @property
+    def break_even_win_rate(self) -> float:
+        """Share of trades that must win, charging a full loss for every loser.
+
+        ``p * credit = (1 - p) * max_loss`` solves to ``1 / (1 + r/r)``. Real
+        losses are often partial, so this asks for more than the trade needs.
+        """
+        if self.credit_per_contract <= 0 or self.reward_to_risk <= 0:
+            return 1.0
+        return 1.0 / (1.0 + self.reward_to_risk)
+
+    @property
+    def implied_win_rate(self) -> float:
+        """What the chain says the odds are, from the delta of the short legs."""
+        return max(0.0, 1.0 - self.tested_probability)
+
+    @property
+    def tested_probability(self) -> float:
+        """Chance that a short strike finishes in the money."""
+        return self.short_delta
+
+    @property
+    def edge(self) -> float:
+        """Implied win rate minus the win rate needed to break even.
+
+        Comparative only - see the class docstring for why its zero point is
+        not the line between a good trade and a bad one.
+        """
+        return self.implied_win_rate - self.break_even_win_rate
+
+    @property
+    def execution_cost_per_contract(self) -> float:
+        """What crossing the bid-ask costs, in dollars, on the way in.
+
+        The difference between the credit at mid and the credit a marketable
+        order actually collects. It is paid with certainty on every fill, which
+        is more than can be said for any of the numbers above.
+        """
+        return max(0.0, self.mid_credit_per_contract - self.credit_per_contract)
+
+    @property
+    def execution_drag(self) -> float:
+        """Execution cost as a share of the credit at mid.
+
+        A structure whose spread eats a third of its own premium has to be
+        right far more often to end up in the same place. This is the one
+        figure here that a snapshot can settle honestly, so it is the one the
+        candidate filter uses.
+        """
+        if self.mid_credit_per_contract <= 0:
+            return 1.0
+        return self.execution_cost_per_contract / self.mid_credit_per_contract
+
+
 @dataclass(frozen=True)
-class SpreadCandidate:
+class SpreadCandidate(Expectancy):
     """A defined-risk vertical credit spread built from two live quotes."""
 
     underlying: str
@@ -68,6 +154,15 @@ class SpreadCandidate:
         return (self.short_quote.bid - self.long_quote.ask) * CONTRACT_MULTIPLIER
 
     @property
+    def mid_credit_per_contract(self) -> float:
+        """The same spread priced mid-to-mid: what it is theoretically worth.
+
+        Never used to size or to submit an order - only to measure what the
+        conservative fill above is giving up.
+        """
+        return (self.short_quote.mid - self.long_quote.mid) * CONTRACT_MULTIPLIER
+
+    @property
     def max_loss_per_contract(self) -> float:
         return self.width * CONTRACT_MULTIPLIER - self.credit_per_contract
 
@@ -101,6 +196,8 @@ class SpreadCandidate:
             f"width ${self.width:g} | credit ${self.credit_per_contract:.0f} | "
             f"risk ${self.max_loss_per_contract:.0f} | "
             f"r/r {self.reward_to_risk:.2f} | short delta {self.short_delta:.3f} | "
+            f"needs {self.break_even_win_rate:.0%} wins, chain implies "
+            f"{self.implied_win_rate:.0%} (edge {self.edge:+.1%}) | "
             f"worst leg spread {self.worst_leg_spread_pct:.1f}%"
         )
 
@@ -137,6 +234,7 @@ def build_credit_spreads(
     widths: Sequence[float] = DEFAULT_WIDTHS,
     max_spread_pct: float = 10.0,
     min_reward_to_risk: float = 0.10,
+    max_execution_drag: float = 0.30,
     max_days_to_expiry: int | None = 7,
     today: date | None = None,
 ) -> list[SpreadCandidate]:
@@ -212,6 +310,12 @@ def build_credit_spreads(
                 continue
             if candidate.reward_to_risk < min_reward_to_risk:
                 continue
+            # A spread that hands a third of its premium to the bid-ask
+            # on the way in is paying a certain cost for an uncertain
+            # edge. That is decidable from the snapshot, so it is
+            # decided here rather than left to the model.
+            if candidate.execution_drag > max_execution_drag:
+                continue
 
             candidates.append(candidate)
 
@@ -219,7 +323,7 @@ def build_credit_spreads(
 
 
 @dataclass(frozen=True)
-class IronCondorCandidate:
+class IronCondorCandidate(Expectancy):
     """A put credit spread and a call credit spread on the same expiry.
 
     Worth building because only one side can finish in the money. The two
@@ -263,6 +367,10 @@ class IronCondorCandidate:
         return self.put_side.credit_per_contract + self.call_side.credit_per_contract
 
     @property
+    def mid_credit_per_contract(self) -> float:
+        return self.put_side.mid_credit_per_contract + self.call_side.mid_credit_per_contract
+
+    @property
     def max_loss_per_contract(self) -> float:
         loss = worst_case_loss(self.legs, 1, self.credit_per_contract)
         # Both wings are long-protected, so the structure is always bounded.
@@ -283,6 +391,18 @@ class IronCondorCandidate:
         return max(self.put_side.short_delta, self.call_side.short_delta)
 
     @property
+    def tested_probability(self) -> float:
+        """Chance that either wing finishes in the money.
+
+        The two outcomes are mutually exclusive at expiry - the underlying
+        cannot close below the put strike and above the call strike - so the
+        probabilities add instead of compounding. This is the number that makes
+        a condor a different bet from the put spread inside it: two credits,
+        but also two ways to be wrong.
+        """
+        return min(1.0, self.put_side.short_delta + self.call_side.short_delta)
+
+    @property
     def worst_leg_spread_pct(self) -> float:
         return max(quote.spread_pct_of_mid for quote in self.quotes)
 
@@ -301,6 +421,8 @@ class IronCondorCandidate:
             f"credit ${self.credit_per_contract:.0f} | "
             f"risk ${self.max_loss_per_contract:.0f} | "
             f"r/r {self.reward_to_risk:.2f} | widest short delta {self.short_delta:.3f} | "
+            f"needs {self.break_even_win_rate:.0%} wins, chain implies "
+            f"{self.implied_win_rate:.0%} (edge {self.edge:+.1%}) | "
             f"worst leg spread {self.worst_leg_spread_pct:.1f}%"
         )
 
@@ -326,6 +448,7 @@ def build_iron_condors(
     call_spreads: Sequence[SpreadCandidate],
     *,
     min_reward_to_risk: float = 0.20,
+    max_execution_drag: float = 0.30,
     max_per_expiry: int = 3,
 ) -> list[IronCondorCandidate]:
     """Pair put and call spreads of the same expiry into iron condors.
@@ -362,6 +485,8 @@ def build_iron_condors(
                 call_side=call_side,
             )
             if condor.reward_to_risk < min_reward_to_risk:
+                continue
+            if condor.execution_drag > max_execution_drag:
                 continue
             by_expiry.setdefault(condor.expiry, []).append(condor)
 

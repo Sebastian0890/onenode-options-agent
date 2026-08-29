@@ -206,6 +206,7 @@ def run_once(
             "max_days_to_expiry": limits.max_days_to_expiry,
             "max_spread_pct": limits.max_spread_pct_of_mid,
             "min_reward_to_risk": limits.min_reward_to_risk,
+            "max_execution_drag": limits.max_execution_drag,
             "today": today,
         }
         put_spreads = build_credit_spreads(list(puts.values()), right=Right.PUT, **shared)
@@ -213,7 +214,9 @@ def run_once(
 
         # Condors first in the list, and they will usually stay near the top:
         # two credits against roughly one width beats either side alone.
-        candidates += build_iron_condors(put_spreads, call_spreads)
+        candidates += build_iron_condors(
+            put_spreads, call_spreads, max_execution_drag=limits.max_execution_drag
+        )
         candidates += put_spreads
         candidates += call_spreads
 
