@@ -16,6 +16,7 @@ write-up, and three of the four judging criteria.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,28 @@ class RiskLimits:
     max_days_to_expiry: int = 7
     max_distinct_expiries: int = 1
     """Single-expiry structures only. Calendars need vega handling we do not do."""
+
+    last_expiry: date | None = date(2026, 9, 3)
+    """The latest expiry the agent may open a position into.
+
+    Set to the day before the competition deadline, which is a presentation
+    decision rather than a trading one. Judging happens Friday 04.09 at 15:00
+    UTC, four and a half hours before that day's options expire. Positions
+    expiring on the 4th would therefore be *open* when the account is read: the
+    result would be an unrealised number with the outcome still undecided.
+
+    The strategy is explicitly built to finish visibly green rather than to
+    maximise return, and an open short spread on judging day is a coin flip
+    against exactly that. Capping at the 3rd means everything is settled and
+    realised before anyone looks.
+
+    It costs the richest day of theta and, on the calibration chain, 36 of 90
+    candidates. Monday through Wednesday the agent still has four, three and two
+    expiries to choose from, which is more menu than it can use at one position
+    per run.
+
+    Set to ``None`` to remove the cap and let ``max_days_to_expiry`` alone decide.
+    """
 
     # --- Instrument selection --------------------------------------------
     allowed_underlyings: frozenset[str] = frozenset({"SPY", "QQQ", "IWM"})

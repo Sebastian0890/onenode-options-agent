@@ -293,6 +293,7 @@ def build_credit_spreads(
     min_reward_to_risk: float = 0.10,
     max_execution_drag: float = 0.30,
     max_days_to_expiry: int | None = 7,
+    last_expiry: date | None = None,
     today: date | None = None,
 ) -> list[SpreadCandidate]:
     """Enumerate every tradeable credit spread that fits the strategy.
@@ -327,6 +328,10 @@ def build_credit_spreads(
     candidates: list[SpreadCandidate] = []
     for (expiry, _), (short_leg, short_quote) in parsed.items():
         if max_days_to_expiry is not None and (expiry - today).days > max_days_to_expiry:
+            continue
+        # A hard last date as well as a rolling window: the competition ends on
+        # a fixed day, and nothing should still be open when the account is read.
+        if last_expiry is not None and expiry > last_expiry:
             continue
         if short_quote.delta is None:
             continue

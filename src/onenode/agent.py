@@ -217,6 +217,7 @@ def run_once(
         shared = {
             "underlying": underlying,
             "max_days_to_expiry": limits.max_days_to_expiry,
+            "last_expiry": limits.last_expiry,
             "max_spread_pct": limits.max_spread_pct_of_mid,
             "min_reward_to_risk": limits.min_reward_to_risk,
             "max_execution_drag": limits.max_execution_drag,

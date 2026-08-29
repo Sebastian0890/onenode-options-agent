@@ -113,6 +113,47 @@ class TestPutCreditSpreads:
             assert abs(best.short_delta - 0.17) <= abs(richest.short_delta - 0.17)
 
 
+class TestLastExpiry:
+    """A hard last date, separate from the rolling day window.
+
+    The competition ends on a fixed day and judging happens four and a half
+    hours before that day's options expire. A position expiring on the deadline
+    is open when the account is read, so the result is unrealised and undecided
+    at exactly the moment it is looked at.
+    """
+
+    def test_an_expiry_past_the_cap_is_refused(self):
+        assert (
+            build_credit_spreads(
+                PUT_CHAIN, underlying="SPY", today=TODAY, last_expiry=date(2026, 8, 30)
+            )
+            == []
+        )
+
+    def test_the_cap_day_itself_is_allowed(self):
+        """Inclusive. A position expiring on the last permitted day settles on
+        that day, which is the point of choosing it."""
+        assert build_credit_spreads(
+            PUT_CHAIN, underlying="SPY", today=TODAY, last_expiry=date(2026, 8, 31)
+        )
+
+    def test_no_cap_falls_back_to_the_rolling_window(self):
+        assert build_credit_spreads(PUT_CHAIN, underlying="SPY", today=TODAY, last_expiry=None)
+
+    def test_the_cap_and_the_window_are_both_enforced(self):
+        """A late cap must not re-admit an expiry the day window already refused."""
+        assert (
+            build_credit_spreads(
+                PUT_CHAIN,
+                underlying="SPY",
+                today=TODAY,
+                max_days_to_expiry=1,
+                last_expiry=date(2027, 1, 1),
+            )
+            == []
+        )
+
+
 class TestFilters:
     def test_short_strike_must_sit_near_the_target_delta(self):
         candidates = build_credit_spreads(

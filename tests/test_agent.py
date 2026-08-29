@@ -25,11 +25,11 @@ QUOTED_AT = datetime(2026, 8, 31, 15, 0, tzinfo=UTC)
 
 CHAIN_PAYLOAD = {
     "snapshots": {
-        "SPY260904P00764000": {
+        "SPY260903P00764000": {
             "greeks": {"delta": -0.17},
             "latestQuote": {"bp": 1.20, "ap": 1.24, "t": QUOTED_AT.isoformat()},
         },
-        "SPY260904P00759000": {
+        "SPY260903P00759000": {
             "greeks": {"delta": -0.09},
             "latestQuote": {"bp": 0.56, "ap": 0.60, "t": QUOTED_AT.isoformat()},
         },
@@ -278,7 +278,7 @@ class TestDuplicateStructures:
     OPEN_ALREADY = [
         {
             "asset_class": "us_option",
-            "symbol": "SPY260904P00764000",
+            "symbol": "SPY260903P00764000",
             "qty": "1",
             "side": "short",
             "market_value": "-100",
@@ -287,7 +287,7 @@ class TestDuplicateStructures:
         },
         {
             "asset_class": "us_option",
-            "symbol": "SPY260904P00759000",
+            "symbol": "SPY260903P00759000",
             "qty": "1",
             "side": "long",
             "market_value": "45",
@@ -309,8 +309,8 @@ class TestDuplicateStructures:
 
     def test_a_different_structure_still_gets_through(self, journal, accepting):
         other = [dict(p) for p in self.OPEN_ALREADY]
-        other[0]["symbol"] = "SPY260904P00755000"
-        other[1]["symbol"] = "SPY260904P00750000"
+        other[0]["symbol"] = "SPY260903P00755000"
+        other[1]["symbol"] = "SPY260903P00750000"
         cli = FakeCLI(positions=other)
         result = run(cli, journal)
         assert result.orders_placed == 1
@@ -322,7 +322,7 @@ class TestUnmeasurableRisk:
         naked = [
             {
                 "asset_class": "us_option",
-                "symbol": "SPY260904C00790000",
+                "symbol": "SPY260903C00790000",
                 "qty": "1",
                 "side": "short",
                 "market_value": "-120",
