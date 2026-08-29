@@ -19,8 +19,8 @@ This agent separates the three things that get conflated in that design:
 
 | Layer | Runs on | Can it place a trade? |
 |---|---|---|
-| **Proposer** | Claude | No. It can only suggest. |
-| **Risk Officer** | An independent open-weights model | No. It can only veto. |
+| **Proposer** | Whichever model is configured | No. It can only suggest. |
+| **Risk Officer** | A model from a different family | No. It can only veto. |
 | **Hard Gate** | Plain Python, no model | **Yes — and only it can.** |
 
 The Proposer reads the market and argues for a trade. The Risk Officer sees the

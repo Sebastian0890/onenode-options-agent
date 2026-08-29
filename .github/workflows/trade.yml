@@ -73,12 +73,26 @@ jobs:
           bin/alpaca profile login --api-key --paper \
             --key "${ALPACA_API_KEY}" --secret "${ALPACA_SECRET_KEY}" --quiet
 
+      # Model keys are all optional and all treated the same way: whichever
+      # are present decide who proposes and who reviews. A missing key is not
+      # an error here - the agent reports "no provider configured" and stands
+      # aside, which is the correct behaviour for an unconfigured run.
+      #
+      # ONENODE_DRY_RUN is honoured from two places. The workflow input covers
+      # a one-off manual test; the repository variable is the safety catch that
+      # holds every scheduled run in dry mode until it is deliberately cleared.
       - name: Run the agent
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           FEATHERLESS_API_KEY: ${{ secrets.FEATHERLESS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          ONENODE_PROPOSER_PROVIDER: ${{ vars.ONENODE_PROPOSER_PROVIDER }}
+          ONENODE_REVIEWER_PROVIDER: ${{ vars.ONENODE_REVIEWER_PROVIDER }}
           ALPACA_CLI_PATH: ${{ github.workspace }}/bin/alpaca
-          ONENODE_DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+          ONENODE_DRY_RUN: ${{ (inputs.dry_run || vars.ONENODE_DRY_RUN == '1') && '1' || '' }}
         run: uv run python -m onenode.agent
 
       - name: Commit the journal

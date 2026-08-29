@@ -274,7 +274,12 @@ def run_once(
             events=result.events,
         )
 
-    note("proposal", candidate=decision.candidate_key, rationale=decision.rationale)
+    note(
+        "proposal",
+        candidate=decision.candidate_key,
+        rationale=decision.rationale,
+        verdict=decision.proposer,
+    )
 
     if decision.action != "trade":
         journal.write_markdown()
@@ -323,6 +328,7 @@ def run_once(
         committed_risk=snapshot.committed_risk,
         minutes_to_close=clock.minutes_to_close,
         worst_case_loss=candidate.max_loss_per_contract * contracts,
+        proposer_family=decision.family,
     )
 
     if not verdict.approve:
@@ -332,6 +338,7 @@ def run_once(
             contracts=contracts,
             reason=verdict.reason,
             verdict=verdict.reviewer,
+            degraded=verdict.degraded,
         )
         journal.write_markdown()
         return RunResult(
@@ -364,6 +371,7 @@ def run_once(
         credit=round(trade.net_cash, 2),
         risk=round(gate.worst_case_loss or 0.0, 2),
         verdict=verdict.reviewer,
+        degraded=verdict.degraded,
     )
 
     # --- 8. Execute -------------------------------------------------------

@@ -18,8 +18,8 @@ three things that design conflates:
 | Layer | Runs on | Can place a trade? |
 |---|---|---|
 | Candidate builder | Plain Python | — |
-| **Proposer** | Claude Opus 5 | No. It can only suggest. |
-| **Risk Officer** | Independent open-weights model | No. It can only veto. |
+| **Proposer** | Whichever model is configured | No. It can only suggest. |
+| **Risk Officer** | A model from a different family | No. It can only veto. |
 | **Hard Gate** | Plain Python, no model | **Yes — and only it can.** |
 
 **The model is never asked to name a contract.** A language model asked for an option symbol
@@ -37,6 +37,18 @@ It is prompted to refute rather than to assess, and to refuse when uncertain. A 
 inherits the argument it is meant to check is not a reviewer, and one that splits the difference
 approves everything eventually. Any failure to reach it counts as a veto: an unreviewed trade is
 exactly what the layer exists to prevent.
+
+**No model is named in the trading code.** Model identifiers rot faster than a hackathon lasts —
+while this was being built, GitHub Models entered its retirement brownout, Groq shut down the two
+Llama models most published code has hardcoded, and Cerebras closed the free tier this project
+would otherwise have used. So a provider states its preferences as substrings and the concrete
+model is resolved against whatever the host's live catalogue reports, which turns a retirement
+into one wasted request instead of one lost trading day.
+
+Independence is tracked by **model lineage rather than by vendor**, because two hosts serving the
+same open checkpoint are one opinion sold twice. When only one lineage is reachable the review
+still happens — an isolated context is worth something — but the verdict is stamped `degraded`
+and the journal says so. The agent never claims a second opinion it did not get.
 
 ## Risk gates
 

@@ -9,22 +9,25 @@ near-identical spreads best fits the tape.
 
 Standing aside is a first-class answer and the prompt says so. An agent that
 must trade every time it is asked will trade badly.
+
+Which model answers is decided in ``llm.py`` from whichever keys are present.
+The decision carries the answering model's name, so the journal records who
+actually chose the trade rather than who was supposed to.
 """
 
 from __future__ import annotations
 
-import os
 from typing import Literal
 
-import anthropic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from ..strategy import IronCondorCandidate, SpreadCandidate
+from . import llm
 
 Candidate = SpreadCandidate | IronCondorCandidate
 
-MODEL = "claude-opus-5"
 MAX_CANDIDATES = 25
+ROLE_ENV = "ONENODE_PROPOSER_PROVIDER"
 
 SYSTEM = """You select credit spreads for an autonomous options agent trading \
 a $100,000 paper account during a one-week competition.
@@ -45,7 +48,11 @@ fifteen minutes.
 
 You do not set position size and you do not place orders. A deterministic risk \
 gate sizes the trade and can reject your choice outright. Do not try to \
-anticipate or argue with it - choose the trade you actually think is best."""
+anticipate or argue with it - choose the trade you actually think is best.
+
+Answer with JSON only, no prose and no code fences:
+{"action": "trade" or "stand_aside", "candidate_key": "exact key from the list, \
+or empty string", "rationale": "two or three sentences"}"""
 
 
 class ProposerDecision(BaseModel):
@@ -57,8 +64,11 @@ class ProposerDecision(BaseModel):
         description="Exact key of the chosen candidate; empty when standing aside.",
     )
     rationale: str = Field(
-        description="Two or three sentences: why this trade, or why nothing today."
+        default="",
+        description="Two or three sentences: why this trade, or why nothing today.",
     )
+    proposer: str = Field(default="", description="Backend that produced this decision.")
+    family: str = Field(default="", description="Model lineage, for reviewer independence.")
 
 
 def build_prompt(
@@ -100,14 +110,15 @@ def propose_trade(
     open_positions: int,
     committed_risk: float,
     minutes_to_close: float,
-    client: anthropic.Anthropic | None = None,
+    ask=llm.ask,
 ) -> ProposerDecision:
     """Ask the Proposer for one trade, or for a pass.
 
     A key that is not on the menu is treated as standing aside rather than as
     something to correct. If the model cannot pick from a list of twenty-five
     strings, the right response is to skip this window, not to guess at what it
-    meant and place a trade on the guess.
+    meant and place a trade on the guess. A reply that does not fit the expected
+    shape is read the same way, for the same reason.
     """
     if not candidates:
         return ProposerDecision(
@@ -115,34 +126,36 @@ def propose_trade(
             rationale="No candidate spread passed the structural filters.",
         )
 
-    if client is None:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise RuntimeError("ANTHROPIC_API_KEY is not set; the proposer cannot run")
-        client = anthropic.Anthropic()
-
-    response = client.messages.parse(
-        model=MODEL,
-        max_tokens=4096,
+    reply = ask(
         system=SYSTEM,
-        messages=[
-            {
-                "role": "user",
-                "content": build_prompt(
-                    candidates,
-                    underlying=underlying,
-                    spot=spot,
-                    day_pnl_pct=day_pnl_pct,
-                    equity=equity,
-                    open_positions=open_positions,
-                    committed_risk=committed_risk,
-                    minutes_to_close=minutes_to_close,
-                ),
-            }
-        ],
-        output_format=ProposerDecision,
+        user=build_prompt(
+            candidates,
+            underlying=underlying,
+            spot=spot,
+            day_pnl_pct=day_pnl_pct,
+            equity=equity,
+            open_positions=open_positions,
+            committed_risk=committed_risk,
+            minutes_to_close=minutes_to_close,
+        ),
+        role_env=ROLE_ENV,
+        max_tokens=1024,
     )
 
-    decision = response.parsed_output
+    try:
+        decision = ProposerDecision.model_validate(
+            {**reply.payload, "proposer": reply.label, "family": reply.family}
+        )
+    except ValidationError as exc:
+        return ProposerDecision(
+            action="stand_aside",
+            rationale=(
+                f"Proposer reply did not fit the expected shape ({exc.error_count()} errors)."
+            ),
+            proposer=reply.label,
+            family=reply.family,
+        )
+
     if decision.action == "trade":
         offered = {candidate.key for candidate in candidates[:MAX_CANDIDATES]}
         if decision.candidate_key not in offered:
@@ -152,6 +165,8 @@ def propose_trade(
                     f"Proposer returned {decision.candidate_key!r}, which was not on the "
                     f"menu. Standing aside rather than guessing at the intent."
                 ),
+                proposer=reply.label,
+                family=reply.family,
             )
     return decision
 
