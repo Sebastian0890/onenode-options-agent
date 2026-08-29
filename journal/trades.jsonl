@@ -2,3 +2,5 @@
 {"ts": "2026-08-28T19:10:09.693332+00:00", "run_id": "a0409a80f513", "event": "account_state", "equity": 100000.0, "day_pnl_pct": 0.0, "open_structures": 0, "committed_risk": 0.0, "minutes_to_close": 50}
 {"ts": "2026-08-28T19:10:15.717168+00:00", "run_id": "a0409a80f513", "event": "candidates_found", "contracts": 307, "reason": "40 condors"}
 {"ts": "2026-08-28T19:10:15.717168+00:00", "run_id": "a0409a80f513", "event": "proposer_failed", "reason": "ANTHROPIC_API_KEY is not set; the proposer cannot run"}
+{"ts": "2026-08-29T11:09:34.510963+00:00", "run_id": "bed5ba75ec92", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
+{"ts": "2026-08-29T11:09:34.585299+00:00", "run_id": "bed5ba75ec92", "event": "market_closed"}
