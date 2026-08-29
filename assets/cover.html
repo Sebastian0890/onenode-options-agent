@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OneNode Options Agent — cover</title>
+<style>
+  /* 1200x630, the safe default for a submission cover. Screenshot the frame. */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --ink: #0d1117;
+    --paper: #f6f7f9;
+    --muted: #6b7280;
+    --line: #d7dae0;
+    --live: #0f7b4f;
+    --live-soft: #e3f3ea;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #22262c;
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    font-family: Inter, -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+
+  .frame {
+    width: 1200px;
+    height: 630px;
+    background: var(--paper);
+    padding: 62px 72px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .eyebrow {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    font-size: 62px;
+    line-height: 1.04;
+    letter-spacing: -0.028em;
+    font-weight: 700;
+    color: var(--ink);
+    margin-top: 14px;
+  }
+
+  .sub {
+    font-size: 23px;
+    line-height: 1.45;
+    color: var(--muted);
+    margin-top: 18px;
+    max-width: 560px;
+    font-weight: 400;
+  }
+
+  /* The whole argument is the last column: three layers that cannot act,
+     one that can. Greying the first three is the point, not decoration. */
+  .stack {
+    position: absolute;
+    right: 72px;
+    top: 96px;
+    width: 452px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .layer {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 20px;
+    background: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  .layer .what {
+    font-size: 18px;
+    font-weight: 600;
+    color: #9aa1ab;
+  }
+
+  .layer .can {
+    font-size: 14px;
+    font-weight: 500;
+    color: #a8aeb7;
+    white-space: nowrap;
+  }
+
+  .layer.gate {
+    border-color: var(--live);
+    border-width: 2px;
+    background: var(--live-soft);
+  }
+
+  .layer.gate .what { color: var(--ink); font-weight: 700; }
+  .layer.gate .can { color: var(--live); font-weight: 700; }
+
+  .gate-note {
+    font-size: 14px;
+    color: var(--live);
+    font-weight: 600;
+    text-align: right;
+    margin-top: 2px;
+  }
+
+  footer {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 16px;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    padding-top: 22px;
+  }
+
+  footer .repo { color: var(--ink); font-weight: 600; }
+  footer .dot { color: var(--line); }
+
+  .paper-badge {
+    margin-left: auto;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    background: #fff;
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div>
+      <div class="eyebrow">Alpaca × lablab.ai · AI Trading Agents</div>
+      <h1>OneNode<br>Options Agent</h1>
+      <p class="sub">A model can propose a trade.<br>A second model can veto it.<br>Only arithmetic can approve it.</p>
+    </div>
+
+    <div class="stack">
+      <div class="layer"><span class="what">Candidate builder</span><span class="can">cannot place</span></div>
+      <div class="layer"><span class="what">Regime filter</span><span class="can">cannot place</span></div>
+      <div class="layer"><span class="what">Proposer — a model</span><span class="can">can suggest</span></div>
+      <div class="layer"><span class="what">Risk Officer — another lineage</span><span class="can">can veto</span></div>
+      <div class="layer gate"><span class="what">Hard Gate — no model</span><span class="can">can approve</span></div>
+      <div class="gate-note">the only layer that can</div>
+    </div>
+
+    <footer>
+      <span class="repo">github.com/Sebastian0890/onenode-options-agent</span>
+      <span class="dot">·</span>
+      <span>MIT</span>
+      <span class="paper-badge">Paper trading — no capital at risk</span>
+    </footer>
+  </div>
+</body>
+</html>
