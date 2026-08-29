@@ -212,7 +212,6 @@ def run_once(
             note("regime_unavailable", candidate=underlying, reason=str(exc))
             market = Regime.unavailable(underlying)
         regimes[underlying] = market
-        note("regime", candidate=underlying, reason=market.describe())
 
         spots[underlying] = spot
         shared = {
@@ -250,6 +249,12 @@ def run_once(
         )
         candidates += put_spreads
         candidates += call_spreads
+
+    # One line per run rather than one per underlying. The journal is what the
+    # dashboard shows, and three regime entries every fifteen minutes would bury
+    # the decisions underneath the conditions they were made in.
+    if regimes:
+        note("regime", reason=" | ".join(market.describe() for market in regimes.values()))
 
     # A structure identical to one already open would merge back into the same
     # position group rather than counting as a second one, so the max-positions
