@@ -19,6 +19,7 @@ This agent separates the three things that get conflated in that design:
 
 | Layer | Runs on | Can it place a trade? |
 |---|---|---|
+| **Regime filter** | Plain Python, market history | No. It can only remove options. |
 | **Proposer** | Whichever model is configured | No. It can only suggest. |
 | **Risk Officer** | A model from a different family | No. It can only veto. |
 | **Hard Gate** | Plain Python, no model | **Yes — and only it can.** |

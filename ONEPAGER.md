@@ -120,6 +120,37 @@ The expectancy figures are still computed, shown to the Proposer and written to 
 *ordering* they give between two candidates is real. Their zero point is not, and the code now
 says so where someone might otherwise trust it.
 
+### Not selling the side the market is moving against
+
+A put credit spread is a bet that the market will not fall much. Sold into a market that is already
+falling it is the same bet at worse odds, and the delta that made it look safe was computed before
+the move. Accounts destroyed selling premium are rarely destroyed by one bad trade; they are
+destroyed by taking the same side repeatedly while the tape runs against it.
+
+So the agent classifies each underlying into a regime from its trailing twenty-session return —
+above +5% bull, below −5% bear, otherwise neutral — and applies one rule with no fitted parameter
+in it:
+
+> **In a bear regime it does not sell puts. In a bull regime it does not sell calls.**
+
+Both sides are removed rather than discouraged, which also removes the iron condors built from
+them, since a condor contains the wing being refused. The other side stays available, so the filter
+narrows the agent rather than stopping it.
+
+Alongside that, a Markov transition matrix is built from the same history and carried as *context* —
+shown to the Proposer, written to the journal — with the horizon set to the candidate's own days to
+expiry. **It is a base rate, not a forecast, and the code says so in the place someone would
+otherwise trust it.** Consecutive twenty-session windows overlap by nineteen sessions, so the state
+sequence is heavily autocorrelated and the matrix mostly measures how long regimes persist; it is
+also fitted on the history it reports on, with nothing held out. Every probability it produces
+travels with the number of transitions behind it, because a row backed by five observations and one
+backed by five hundred read identically once normalised. On thirteen months of SPY the bear row has
+five.
+
+When the history cannot be fetched the filter does nothing and journals `regime_unavailable`. It is
+a restriction layered on a system that is already safe without it — the hard gate, the daily stop
+and the sizing budget never consult it — so an outage should cost the refinement, not the session.
+
 ## Alpaca infrastructure
 
 **Trading API via the Alpaca CLI** for the autonomous loop. The agent wakes on a schedule, looks

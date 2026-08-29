@@ -19,10 +19,11 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from ..regime import DailyBar
 from ..risk.models import MarketClock
 
 DEFAULT_TIMEOUT_SECONDS = 45
@@ -325,6 +326,46 @@ class AlpacaCLI:
         if not isinstance(trade, dict):
             raise AlpacaCLIError(f"no trade in latest-trade response for {symbol}")
         return _as_float(trade, "p", "price")
+
+    def daily_bars(self, symbol: str, sessions: int = 260) -> list[DailyBar]:
+        """Daily closes, oldest first, for classifying the regime.
+
+        ``sessions`` counts trading days, not calendar days, so the window
+        asked for is widened by the ratio between them - roughly 252 sessions
+        to 365 days - plus a margin for holidays. Asking for too many is free;
+        asking for too few silently shortens the history the matrix is built
+        from, which is the failure that would not announce itself.
+        """
+        start = (date.today() - timedelta(days=int(sessions * 1.5) + 30)).isoformat()
+        payload = self._run(
+            "data",
+            "bars",
+            "--symbol",
+            symbol,
+            "--timeframe",
+            "1Day",
+            "--start",
+            start,
+            "--limit",
+            str(sessions + 60),
+            "--sort",
+            "asc",
+        )
+        rows = payload.get("bars")
+        if not isinstance(rows, list):
+            raise AlpacaCLIError(f"no bars in response for {symbol}")
+
+        bars: list[DailyBar] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            stamp = row.get("t")
+            if not isinstance(stamp, str):
+                continue
+            bars.append(
+                DailyBar(day=_parse_timestamp(stamp).date(), close=_as_float(row, "c", "close"))
+            )
+        return bars
 
     def option_chain(
         self,

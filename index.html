@@ -103,6 +103,11 @@
       <div class="v">priced at short-bid minus long-ask, never mid-to-mid</div>
     </div>
     <div class="layer">
+      <div class="t">1b · Regime filter <span style="color:var(--muted);font-weight:400">— plain code, market history</span></div>
+      <div class="d">Classifies the underlying from its trailing 20-session return. In a bear regime the agent does not sell puts; in a bull regime it does not sell calls. One rule, no fitted parameter. A Markov transition matrix rides along as context, carrying the number of observations behind every probability.</div>
+      <div class="v">removes options · never adds one</div>
+    </div>
+    <div class="layer">
       <div class="t">2 · Proposer <span style="color:var(--muted);font-weight:400">— whichever model is configured</span></div>
       <div class="d">Picks one key off that menu, or stands aside. Standing aside is a first-class answer.</div>
       <div class="v">can suggest · cannot place</div>

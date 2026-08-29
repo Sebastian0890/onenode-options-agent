@@ -81,12 +81,14 @@ def build_prompt(
     open_positions: int,
     committed_risk: float,
     minutes_to_close: float,
+    regime: str = "",
 ) -> str:
     """Assemble the market picture and the menu into one message."""
     menu = "\n".join(f"  {candidate.describe()}" for candidate in candidates[:MAX_CANDIDATES])
     return f"""Market
   {underlying} spot: {spot:,.2f}
   minutes to close: {minutes_to_close:.0f}
+  {regime or "regime not assessed"}
 
 Account
   equity: ${equity:,.2f}
@@ -110,6 +112,7 @@ def propose_trade(
     open_positions: int,
     committed_risk: float,
     minutes_to_close: float,
+    regime: str = "",
     ask=llm.ask,
 ) -> ProposerDecision:
     """Ask the Proposer for one trade, or for a pass.
@@ -137,6 +140,7 @@ def propose_trade(
             open_positions=open_positions,
             committed_risk=committed_risk,
             minutes_to_close=minutes_to_close,
+            regime=regime,
         ),
         role_env=ROLE_ENV,
         max_tokens=1024,

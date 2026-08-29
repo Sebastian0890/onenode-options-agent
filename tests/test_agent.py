@@ -16,6 +16,7 @@ from onenode import agent as agent_module
 from onenode.agent import run_once
 from onenode.agents.proposer import ProposerDecision
 from onenode.agents.risk_officer import RiskVerdict
+from onenode.broker.cli import AlpacaCLIError
 from onenode.journal import Journal
 from onenode.risk.models import MarketClock
 
@@ -56,6 +57,13 @@ class FakeCLI:
         self._positions = positions or []
         self._problems = problems or []
         self.orders: list[list[str]] = []
+
+    def daily_bars(self, symbol, sessions=260):
+        """A flat year. No regime, so the regime filter blocks nothing and the
+        rest of these tests keep testing what they were written to test."""
+        from onenode.regime import DailyBar
+
+        return [DailyBar(day=date(2026, 1, 1), close=100.0) for _ in range(sessions)]
 
     def preflight(self):
         return list(self._problems)
@@ -326,3 +334,56 @@ class TestUnmeasurableRisk:
         result = run(cli, journal)
         assert result.status == "blocked"
         assert result.orders_placed == 0
+
+
+class TestRegimeFilter:
+    """The chain in this file is puts only, so a bear regime empties the menu
+    entirely - which makes it easy to see whether the filter fired at all."""
+
+    @staticmethod
+    def _cli_in(trend_pct_per_session):
+        class Trending(FakeCLI):
+            def daily_bars(self, symbol, sessions=260):
+                from onenode.regime import DailyBar
+
+                bars, close = [], 100.0
+                for _index in range(sessions):
+                    close *= 1 + trend_pct_per_session / 100.0
+                    bars.append(DailyBar(day=date(2026, 1, 1), close=close))
+                return bars
+
+        return Trending()
+
+    def test_puts_are_not_sold_into_a_falling_market(self, journal, accepting):
+        cli = self._cli_in(-0.5)
+        result = run(cli, journal)
+        assert result.orders_placed == 0
+        assert cli.orders == []
+        events = [e["event"] for e in journal.entries()]
+        assert "regime_blocked" in events
+
+    def test_a_flat_market_leaves_the_menu_alone(self, journal, accepting):
+        cli = self._cli_in(0.0)
+        result = run(cli, journal)
+        assert result.orders_placed == 1
+        assert "regime_blocked" not in [e["event"] for e in journal.entries()]
+
+    def test_a_broker_that_cannot_serve_history_does_not_halt_trading(self, journal, accepting):
+        """A data outage must cost the refinement, not the session."""
+
+        class NoHistory(FakeCLI):
+            def daily_bars(self, symbol, sessions=260):
+                raise AlpacaCLIError("bars endpoint unavailable")
+
+        cli = NoHistory()
+        result = run(cli, journal)
+        assert result.orders_placed == 1
+        events = [e["event"] for e in journal.entries()]
+        assert "regime_unavailable" in events
+
+    def test_the_regime_is_journalled_every_run(self, journal, accepting):
+        cli = self._cli_in(0.0)
+        run(cli, journal)
+        recorded = [e for e in journal.entries() if e["event"] == "regime"]
+        assert recorded
+        assert "neutral regime" in recorded[0]["reason"]

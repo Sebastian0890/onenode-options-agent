@@ -30,6 +30,7 @@ from .execution import close_position, closing_limit_price, submit_spread
 from .journal import Journal
 from .management import DEFAULT_EXIT_RULES, ExitRules, positions_to_close
 from .portfolio import committed_risk, group_option_positions
+from .regime import Regime, from_bars
 from .risk.gate import evaluate
 from .risk.limits import DEFAULT_LIMITS, RiskLimits
 from .risk.models import AccountSnapshot, Right
@@ -177,6 +178,7 @@ def run_once(
     # --- 5. Build the menu -----------------------------------------------
     candidates: list = []
     spots: dict[str, float] = {}
+    regimes: dict[str, Regime] = {}
     for underlying in underlyings:
         if underlying not in limits.allowed_underlyings:
             continue
@@ -200,6 +202,18 @@ def run_once(
             note("data_failed", candidate=underlying, reason=str(exc))
             continue
 
+        # The regime is a refinement on top of a system that is already
+        # safe without it, so losing the history costs the refinement and not
+        # the session. The hard gate, the daily stop and the sizing budget do
+        # not consult it.
+        try:
+            market = from_bars(underlying, cli.daily_bars(underlying))
+        except AlpacaCLIError as exc:
+            note("regime_unavailable", candidate=underlying, reason=str(exc))
+            market = Regime.unavailable(underlying)
+        regimes[underlying] = market
+        note("regime", candidate=underlying, reason=market.describe())
+
         spots[underlying] = spot
         shared = {
             "underlying": underlying,
@@ -211,6 +225,23 @@ def run_once(
         }
         put_spreads = build_credit_spreads(list(puts.values()), right=Right.PUT, **shared)
         call_spreads = build_credit_spreads(list(calls.values()), right=Right.CALL, **shared)
+
+        # Selling puts into a falling market is the same bet at worse odds, and
+        # the delta that made it look safe was computed before the move. Both
+        # sides are dropped rather than discouraged, which also removes the
+        # condors built from them - a condor contains the wing being refused.
+        for right, spreads in ((Right.PUT, put_spreads), (Right.CALL, call_spreads)):
+            if market.blocks(right) and spreads:
+                note(
+                    "regime_blocked",
+                    candidate=underlying,
+                    contracts=len(spreads),
+                    reason=f"{market.state} regime: not selling {right.value}s into it",
+                )
+        if market.blocks(Right.PUT):
+            put_spreads = []
+        if market.blocks(Right.CALL):
+            call_spreads = []
 
         # Condors first in the list, and they will usually stay near the top:
         # two credits against roughly one width beats either side alone.
@@ -266,6 +297,7 @@ def run_once(
             open_positions=len(groups),
             committed_risk=snapshot.committed_risk,
             minutes_to_close=clock.minutes_to_close,
+            regime=regimes.get(primary, Regime.unavailable(primary)).describe(),
         )
     except Exception as exc:  # noqa: BLE001 - a broken proposer must not trade
         note("proposer_failed", reason=str(exc))
