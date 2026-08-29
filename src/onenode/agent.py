@@ -34,7 +34,7 @@ from .regime import Regime, from_bars
 from .risk.gate import evaluate
 from .risk.limits import DEFAULT_LIMITS, RiskLimits
 from .risk.models import AccountSnapshot, Right
-from .strategy import build_credit_spreads, build_iron_condors, size_position
+from .strategy import build_credit_spreads, build_iron_condors, rank, size_position
 
 DEFAULT_UNDERLYINGS = ("SPY", "QQQ", "IWM")
 
@@ -275,7 +275,7 @@ def run_once(
         )
         candidates = fresh
 
-    candidates.sort(key=lambda c: -c.reward_to_risk)
+    candidates.sort(key=rank())
     note(
         "candidates_found",
         contracts=len(candidates),

@@ -75,10 +75,42 @@ class TestPutCreditSpreads:
             assert candidate.short_leg.side is Side.SELL
             assert candidate.long_leg.side is Side.BUY
 
-    def test_ranked_by_reward_to_risk(self):
-        candidates = build_credit_spreads(PUT_CHAIN, underlying="SPY", today=TODAY)
-        ratios = [c.reward_to_risk for c in candidates]
+    def test_ranked_by_nearness_to_the_target_delta(self):
+        """Reward-to-risk rises monotonically with the short delta, so ranking
+        by it sorts candidates by exactly the quantity the delta band exists to
+        limit - the band's upper edge wins every time. Measured against the live
+        SPY chain that put the median short delta of the shown menu at 0.241
+        against a target of 0.17.
+        """
+        candidates = build_credit_spreads(
+            PUT_CHAIN, underlying="SPY", target_delta=0.17, today=TODAY
+        )
+        distances = [abs(c.short_delta - 0.17) for c in candidates]
+        assert distances == sorted(distances) or all(
+            round(a / 0.02) <= round(b / 0.02)
+            for a, b in zip(distances, distances[1:], strict=False)
+        )
+
+    def test_the_best_paid_wins_among_candidates_at_the_same_risk(self):
+        """Nearness decides first, but it must not decide everything - two
+        spreads on the same short strike differ only in what they pay."""
+        candidates = build_credit_spreads(
+            PUT_CHAIN, underlying="SPY", target_delta=0.17, today=TODAY
+        )
+        same_strike = [c for c in candidates if c.short_leg.strike == 764.0]
+        assert len(same_strike) > 1, "fixture has no pair to tiebreak between"
+        ratios = [c.reward_to_risk for c in same_strike]
         assert ratios == sorted(ratios, reverse=True)
+
+    def test_a_richer_spread_does_not_outrank_a_closer_one(self):
+        """The defect this ranking exists to prevent, stated directly."""
+        candidates = build_credit_spreads(
+            PUT_CHAIN, underlying="SPY", target_delta=0.17, delta_tolerance=0.10, today=TODAY
+        )
+        best = candidates[0]
+        richest = max(candidates, key=lambda c: c.reward_to_risk)
+        if richest is not best:
+            assert abs(best.short_delta - 0.17) <= abs(richest.short_delta - 0.17)
 
 
 class TestFilters:

@@ -21,12 +21,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from ..strategy import IronCondorCandidate, SpreadCandidate
+from ..strategy import MAX_MENU, IronCondorCandidate, SpreadCandidate
 from . import llm
 
 Candidate = SpreadCandidate | IronCondorCandidate
 
-MAX_CANDIDATES = 25
+MAX_CANDIDATES = MAX_MENU
 ROLE_ENV = "ONENODE_PROPOSER_PROVIDER"
 
 SYSTEM = """You select credit spreads for an autonomous options agent trading \

@@ -28,6 +28,11 @@ from .risk.payoff import worst_case_loss
 
 DEFAULT_WIDTHS: tuple[float, ...] = (1.0, 2.0, 3.0, 5.0)
 
+MAX_MENU = 25
+"""How many candidates the Proposer is shown. Lives here rather than in the
+proposer, because what the ranking does only matters over the slice that is
+actually seen - and calibration has to measure that same slice."""
+
 
 class Expectancy:
     """How a structure prices up against the odds the chain is quoting.
@@ -224,12 +229,64 @@ def _strike_key(strike: float) -> int:
     return round(strike * 1000)
 
 
+DEFAULT_TARGET_DELTA = 0.17
+"""Short-strike delta the strategy aims at. Roughly a five-in-six chance of
+expiring worthless, which is the shape of edge selling premium is built on."""
+
+DELTA_BUCKET = 0.02
+"""Granularity at which two short deltas count as the same risk.
+
+Finer than this and the tiebreak below never gets to decide anything, because
+no two candidates are ever quite equal; coarser and genuinely different strikes
+get treated as interchangeable. Two cents of delta is also about the width of
+the quote noise the greeks arrive with.
+"""
+
+
+def rank(target_delta: float = DEFAULT_TARGET_DELTA):
+    """Ordering for the menu the model is shown. Best first.
+
+    The obvious key is reward-to-risk, and it is wrong here for a reason that
+    only appears when the ranking is measured against a real chain:
+    **reward-to-risk rises monotonically with the short delta.** More delta is
+    more premium is more credit against the same width. Ranking by it therefore
+    sorts candidates by exactly the quantity the delta band exists to limit, and
+    whatever sits at the band's upper edge wins every time.
+
+    On the SPY chain of 2026-08-28 the target delta was 0.17 with a tolerance of
+    0.08, and the top twenty-five by reward-to-risk had a median short delta of
+    **0.241** - twenty of the twenty-five clustered at 0.22 and 0.24. The target
+    was decorative. Worse, the Proposer's own instructions say the edge is win
+    rate rather than size of win, and it was being handed a menu ranked by the
+    opposite of that.
+
+    Ranking by ``edge`` was tried next and rejected. It fixes the direction but
+    is not stable: it favours low delta hard enough that the menu's median moved
+    to 0.127 with credits of eight dollars, and where it landed depended on the
+    reward-to-risk floor rather than on anything about the market - 0.198 at a
+    floor of 0.10, 0.127 at 0.05. A ranking that moves when an unrelated
+    threshold moves is not measuring what it claims to.
+
+    So the ranking says what the strategy says: get near the target delta, and
+    among candidates that are equally near it, take the one that pays best.
+    Measured on the same chain, the menu's median delta became 0.179 at a floor
+    of 0.05 and 0.198 at 0.10 - close to target under both, which is the
+    property the other two orderings lacked.
+    """
+
+    def key(candidate: SpreadCandidate | IronCondorCandidate) -> tuple[float, float, float]:
+        distance = round(abs(candidate.short_delta - target_delta) / DELTA_BUCKET)
+        return (distance, -candidate.reward_to_risk, candidate.max_loss_per_contract)
+
+    return key
+
+
 def build_credit_spreads(
     quotes: Iterable[ContractQuote],
     *,
     underlying: str,
     right: Right = Right.PUT,
-    target_delta: float = 0.17,
+    target_delta: float = DEFAULT_TARGET_DELTA,
     delta_tolerance: float = 0.08,
     widths: Sequence[float] = DEFAULT_WIDTHS,
     max_spread_pct: float = 10.0,
@@ -246,7 +303,9 @@ def build_credit_spreads(
     contract expires worthless roughly five times in six, which is the shape of
     edge this strategy is built on.
 
-    Returns candidates sorted by reward-to-risk, best first.
+    Returns candidates nearest the target delta first, best-paid among
+    equals. Not by reward-to-risk: see ``rank`` for why that ordering quietly
+    overrides the delta target it is supposed to work within.
     """
     today = today or date.today()
 
@@ -319,7 +378,7 @@ def build_credit_spreads(
 
             candidates.append(candidate)
 
-    return sorted(candidates, key=lambda c: (-c.reward_to_risk, c.max_loss_per_contract))
+    return sorted(candidates, key=rank(target_delta))
 
 
 @dataclass(frozen=True)
@@ -492,10 +551,10 @@ def build_iron_condors(
 
     out: list[IronCondorCandidate] = []
     for expiry in sorted(by_expiry):
-        ranked = sorted(by_expiry[expiry], key=lambda c: -c.reward_to_risk)
+        ranked = sorted(by_expiry[expiry], key=rank())
         out.extend(ranked[:max_per_expiry])
 
-    return sorted(out, key=lambda c: -c.reward_to_risk)
+    return sorted(out, key=rank())
 
 
 def size_position(

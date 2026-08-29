@@ -10,6 +10,7 @@ than from taste.
 
 from __future__ import annotations
 
+import statistics
 import sys
 from collections import Counter
 from pathlib import Path
@@ -20,8 +21,10 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from onenode.broker import AlpacaCLI  # noqa: E402
 from onenode.risk.models import Right  # noqa: E402
 from onenode.strategy import (  # noqa: E402
+    MAX_MENU,
     build_credit_spreads,
     build_iron_condors,
+    rank,
     size_position,
 )
 
@@ -49,7 +52,7 @@ def main() -> int:
     print("\nreward-to-risk floor sweep (delta 0.17 +/- 0.08, all widths):")
     for floor in (0.0, 0.05, 0.10, 0.15, 0.20, 0.30):
         found = build_credit_spreads(quotes, underlying=underlying, min_reward_to_risk=floor)
-        best = found[0].reward_to_risk if found else 0.0
+        best = max((c.reward_to_risk for c in found), default=0.0)
         print(f"  floor {floor:.2f} -> {len(found):4d} candidates, best r/r {best:.3f}")
 
     print("\ndelta band sweep (floor 0.05):")
@@ -61,7 +64,7 @@ def main() -> int:
             delta_tolerance=0.03,
             min_reward_to_risk=0.05,
         )
-        best = found[0].reward_to_risk if found else 0.0
+        best = max((c.reward_to_risk for c in found), default=0.0)
         print(f"  delta {target:.2f} -> {len(found):4d} candidates, best r/r {best:.3f}")
 
     print("\nwidth sweep (delta 0.17 +/- 0.08, floor 0.05):")
@@ -69,8 +72,35 @@ def main() -> int:
         found = build_credit_spreads(
             quotes, underlying=underlying, widths=(width,), min_reward_to_risk=0.05
         )
-        best = found[0].reward_to_risk if found else 0.0
+        best = max((c.reward_to_risk for c in found), default=0.0)
         print(f"  width ${width:4.0f} -> {len(found):4d} candidates, best r/r {best:.3f}")
+
+    print("\nexecution-cost ceiling sweep (delta 0.17 +/- 0.08, floor 0.05):")
+    for ceiling in (1.00, 0.50, 0.30, 0.20, 0.10):
+        found = build_credit_spreads(
+            quotes, underlying=underlying, min_reward_to_risk=0.05, max_execution_drag=ceiling
+        )
+        worst = max((c.execution_drag for c in found), default=0.0)
+        print(f"  ceiling {ceiling:.0%} -> {len(found):4d} candidates, worst kept {worst:.1%}")
+
+    # What the model is actually shown, which is the only ranking that matters.
+    # Reward-to-risk rises with the short delta, so a menu ranked by it drifts
+    # to the top of the delta band and the target stops meaning anything. This
+    # prints the drift so a future change to `rank` cannot hide one.
+    menu = sorted(
+        build_credit_spreads(quotes, underlying=underlying, min_reward_to_risk=0.05), key=rank()
+    )[:MAX_MENU]
+    if menu:
+        deltas = [c.short_delta for c in menu]
+        levels = Counter(round(d, 2) for d in deltas)
+        print(f"\nthe menu the model sees (top {len(menu)}):")
+        print(
+            f"  short delta: median {statistics.median(deltas):.3f} "
+            f"(target 0.17), range {min(deltas):.3f}-{max(deltas):.3f}"
+        )
+        print(f"  implied win rate: mean {statistics.mean(1 - d for d in deltas):.1%}")
+        print(f"  execution drag: median {statistics.median(c.execution_drag for c in menu):.1%}")
+        print(f"  distinct delta levels: {len(levels)} {dict(sorted(levels.items()))}")
 
     everything = build_credit_spreads(
         quotes, underlying=underlying, min_reward_to_risk=0.05, widths=(1, 2, 3, 5, 10)
