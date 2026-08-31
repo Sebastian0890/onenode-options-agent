@@ -4,3 +4,8 @@
 {"ts": "2026-08-28T19:10:15.717168+00:00", "run_id": "a0409a80f513", "event": "proposer_failed", "reason": "ANTHROPIC_API_KEY is not set; the proposer cannot run"}
 {"ts": "2026-08-29T11:09:34.510963+00:00", "run_id": "bed5ba75ec92", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
 {"ts": "2026-08-29T11:09:34.585299+00:00", "run_id": "bed5ba75ec92", "event": "market_closed"}
+{"ts": "2026-08-31T19:22:27.752510+00:00", "run_id": "17ed26925417", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
+{"ts": "2026-08-31T19:22:28.081189+00:00", "run_id": "17ed26925417", "event": "account_state", "equity": 100000.0, "day_pnl_pct": 0.0, "open_structures": 0, "committed_risk": 0.0, "minutes_to_close": 38}
+{"ts": "2026-08-31T19:22:30.298507+00:00", "run_id": "17ed26925417", "event": "regime", "reason": "SPY: neutral regime (+1.1% over 20 sessions) | after 5 sessions historically: bull 5% / neutral 93% / bear 2% (238 transitions from this state in 271 sessions) | QQQ: neutral regime (+2.1% over 20 sessions) | after 5 sessions historically: bull 12% / neutral 85% / bear 3% (213 transitions from this state in 271 sessions) | IWM: neutral regime (-1.0% over 20 sessions) | after 5 sessions historically: bull 18% / neutral 76% / bear 6% (188 transitions from this state in 271 sessions)"}
+{"ts": "2026-08-31T19:22:30.299404+00:00", "run_id": "17ed26925417", "event": "candidates_found", "contracts": 118, "reason": "20 condors"}
+{"ts": "2026-08-31T19:22:30.300667+00:00", "run_id": "17ed26925417", "event": "proposer_failed", "reason": "no model provider configured - set one of: GEMINI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY, FEATHERLESS_API_KEY, OPENROUTER_API_KEY, CEREBRAS_API_KEY"}
