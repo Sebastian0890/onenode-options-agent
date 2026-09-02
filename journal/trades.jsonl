@@ -21,3 +21,8 @@
 {"ts": "2026-09-01T19:56:11.132111+00:00", "run_id": "d141865a8a77", "event": "no_new_positions", "reason": "4min to close"}
 {"ts": "2026-09-01T22:24:34.951319+00:00", "run_id": "26bc3bac583e", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
 {"ts": "2026-09-01T22:24:35.445821+00:00", "run_id": "26bc3bac583e", "event": "market_closed"}
+{"ts": "2026-09-02T16:58:06.342896+00:00", "run_id": "291ced13bbf6", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
+{"ts": "2026-09-02T16:58:06.841878+00:00", "run_id": "291ced13bbf6", "event": "account_state", "equity": 100000.0, "day_pnl_pct": 0.0, "open_structures": 0, "committed_risk": 0.0, "minutes_to_close": 182}
+{"ts": "2026-09-02T16:58:09.264136+00:00", "run_id": "291ced13bbf6", "event": "regime", "reason": "SPY: neutral regime (-0.6% over 20 sessions) | after 5 sessions historically: bull 5% / neutral 93% / bear 2% (238 transitions from this state in 271 sessions) | QQQ: neutral regime (-1.2% over 20 sessions) | after 5 sessions historically: bull 12% / neutral 85% / bear 3% (213 transitions from this state in 271 sessions) | IWM: neutral regime (-2.2% over 20 sessions) | after 5 sessions historically: bull 18% / neutral 76% / bear 6% (188 transitions from this state in 271 sessions)"}
+{"ts": "2026-09-02T16:58:09.264489+00:00", "run_id": "291ced13bbf6", "event": "candidates_found", "contracts": 34, "reason": "6 condors"}
+{"ts": "2026-09-02T16:58:09.265065+00:00", "run_id": "291ced13bbf6", "event": "proposer_failed", "reason": "no model provider configured - set one of: GEMINI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY, FEATHERLESS_API_KEY, OPENROUTER_API_KEY, CEREBRAS_API_KEY"}

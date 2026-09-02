@@ -5,12 +5,15 @@ Paper trading only - no real capital at any point.
 
 | | |
 |---|---|
-| Runs | 6 |
+| Runs | 8 |
 | Orders placed | 0 |
 | Blocked by the hard gate | 0 |
 | Vetoed by the risk officer | 0 |
 
 ## Recent activity
+
+**2026-09-02 16:58:09Z — `proposer_failed`**
+- reason: no model provider configured - set one of: GEMINI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY, FEATHERLESS_API_KEY, OPENROUTER_API_KEY, CEREBRAS_API_KEY
 
 **2026-09-01 19:56:11Z — `no_new_positions`**
 - reason: 4min to close
