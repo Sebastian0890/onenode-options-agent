@@ -29,3 +29,5 @@
 {"ts": "2026-09-02T19:39:31.949446+00:00", "run_id": "10085acdccaf", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
 {"ts": "2026-09-02T19:39:32.698170+00:00", "run_id": "10085acdccaf", "event": "account_state", "equity": 100000.0, "day_pnl_pct": 0.0, "open_structures": 0, "committed_risk": 0.0, "minutes_to_close": 20}
 {"ts": "2026-09-02T19:39:32.698343+00:00", "run_id": "10085acdccaf", "event": "no_new_positions", "reason": "20min to close"}
+{"ts": "2026-09-02T21:58:41.070777+00:00", "run_id": "79230ff703f4", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
+{"ts": "2026-09-02T21:58:41.459898+00:00", "run_id": "79230ff703f4", "event": "market_closed"}
