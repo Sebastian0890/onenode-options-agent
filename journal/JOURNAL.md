@@ -5,7 +5,7 @@ Paper trading only - no real capital at any point.
 
 | | |
 |---|---|
-| Runs | 14 |
+| Runs | 15 |
 | Orders placed | 0 |
 | Blocked by the hard gate | 0 |
 | Vetoed by the risk officer | 0 |
