@@ -50,3 +50,5 @@
 {"ts": "2026-09-04T19:09:41.146510+00:00", "run_id": "7125bf9137d1", "event": "candidates_found", "contracts": 0, "reason": "0 condors"}
 {"ts": "2026-09-04T21:28:06.124018+00:00", "run_id": "678fe504c05b", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
 {"ts": "2026-09-04T21:28:06.399921+00:00", "run_id": "678fe504c05b", "event": "market_closed"}
+{"ts": "2026-09-07T18:05:03.484722+00:00", "run_id": "1d9ab817603a", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
+{"ts": "2026-09-07T18:05:03.566489+00:00", "run_id": "1d9ab817603a", "event": "market_closed"}
