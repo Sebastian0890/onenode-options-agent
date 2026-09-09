@@ -5,12 +5,15 @@ Paper trading only - no real capital at any point.
 
 | | |
 |---|---|
-| Runs | 22 |
+| Runs | 23 |
 | Orders placed | 0 |
 | Blocked by the hard gate | 0 |
 | Vetoed by the risk officer | 0 |
 
 ## Recent activity
+
+**2026-09-09 19:45:20Z — `no_new_positions`**
+- reason: 15min to close
 
 **2026-09-08 19:53:53Z — `no_new_positions`**
 - reason: 6min to close
