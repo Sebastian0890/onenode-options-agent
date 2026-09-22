@@ -141,3 +141,5 @@
 {"ts": "2026-09-22T17:30:35.140604+00:00", "run_id": "9217320e2aac", "event": "candidates_found", "contracts": 0, "reason": "0 condors"}
 {"ts": "2026-09-22T20:28:23.207473+00:00", "run_id": "181b1d90ab6b", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
 {"ts": "2026-09-22T20:28:23.373568+00:00", "run_id": "181b1d90ab6b", "event": "market_closed"}
+{"ts": "2026-09-22T23:11:48.171799+00:00", "run_id": "ba8e7514703b", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
+{"ts": "2026-09-22T23:11:48.245085+00:00", "run_id": "ba8e7514703b", "event": "market_closed"}
