@@ -192,3 +192,7 @@
 {"ts": "2026-10-02T18:11:44.028542+00:00", "run_id": "a4d3f7756c79", "event": "candidates_found", "contracts": 0, "reason": "0 condors"}
 {"ts": "2026-10-02T22:14:41.008765+00:00", "run_id": "db4aaba4e3db", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
 {"ts": "2026-10-02T22:14:41.084057+00:00", "run_id": "db4aaba4e3db", "event": "market_closed"}
+{"ts": "2026-10-06T18:45:25.792850+00:00", "run_id": "8b1b4b016f3f", "event": "run_started", "dry_run": true, "underlyings": ["SPY", "QQQ", "IWM"]}
+{"ts": "2026-10-06T18:45:26.992438+00:00", "run_id": "8b1b4b016f3f", "event": "account_state", "equity": 100000.0, "day_pnl_pct": 0.0, "open_structures": 0, "committed_risk": 0.0, "minutes_to_close": 75}
+{"ts": "2026-10-06T18:45:31.733923+00:00", "run_id": "8b1b4b016f3f", "event": "regime", "reason": "SPY: neutral regime (+1.8% over 20 sessions) | after 5 sessions historically: bull 5% / neutral 93% / bear 2% (237 transitions from this state in 270 sessions) | QQQ: bull regime (+5.9% over 20 sessions) | after 5 sessions historically: bull 44% / neutral 55% / bear 1% (52 transitions from this state in 270 sessions) | IWM: neutral regime (-4.5% over 20 sessions) | after 5 sessions historically: bull 16% / neutral 74% / bear 10% (187 transitions from this state in 270 sessions)"}
+{"ts": "2026-10-06T18:45:31.734089+00:00", "run_id": "8b1b4b016f3f", "event": "candidates_found", "contracts": 0, "reason": "0 condors"}
